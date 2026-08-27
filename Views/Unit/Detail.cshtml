@@ -1,0 +1,46 @@
+@model TraceUnit
+@{
+    ViewData["Title"] = $"Truy xuất {Model.Code}";
+    var events = Model.Events.OrderBy(e => e.OccurredAt).ToList();
+    var next = Model.LastStage.HasValue ? (int)Model.LastStage.Value + 1 : 0;
+}
+<div class="row g-3">
+    <div class="col-lg-8"><div class="card"><div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+                <h5 class="fw-bold mb-1" style="font-family:monospace">@Model.Code</h5>
+                <div class="text-muted small">@Model.Product.Name · Lô @Model.LotNo · @Model.Product.Origin</div>
+            </div>
+            <a href="/Trace?code=@Model.Code" target="_blank" class="btn btn-sm btn-outline-primary">Xem trang công khai</a>
+        </div>
+        <h6 class="fw-bold mb-3">Dòng thời gian chuỗi cung ứng</h6>
+        <div style="border-left:2px solid #e5e7eb; margin-left:8px; padding-left:18px">
+            @foreach (var e in events)
+            {
+                var (txt, css, icon) = Ui.Stage(e.Type);
+                <div class="mb-3 position-relative">
+                    <span class="position-absolute" style="left:-27px; top:2px"><i class="bi @icon text-@css" style="font-size:16px;background:#fff"></i></span>
+                    <div class="fw-semibold">@txt <span class="text-muted small ms-1">@e.OccurredAt.ToString("dd/MM/yyyy HH:mm")</span></div>
+                    <div class="small text-muted">@e.Actor · @e.Location @if (!string.IsNullOrEmpty(e.Note)) { <span>— @e.Note</span> }</div>
+                </div>
+            }
+        </div>
+    </div></div></div>
+    <div class="col-lg-4"><div class="card"><div class="card-body">
+        <h6 class="fw-bold mb-3">Ghi sự kiện tiếp theo</h6>
+        @if (Model.LastStage == EventType.Sold) { <div class="alert alert-success small mb-0">Chuỗi đã hoàn tất (đã bán cho NTD).</div> }
+        else
+        {
+            <form asp-action="AddEvent" method="post">@Html.AntiForgeryToken()<input type="hidden" name="id" value="@Model.Id" />
+                <div class="mb-2"><label class="form-label small text-muted">Loại sự kiện</label>
+                    <select name="type" class="form-select">
+                        @foreach (EventType t in Enum.GetValues(typeof(EventType))) { if ((int)t >= next) { <option value="@((int)t)">@Ui.Stage(t).text</option> } }
+                    </select></div>
+                <div class="mb-2"><input name="actor" class="form-control" placeholder="Đơn vị thực hiện" /></div>
+                <div class="mb-2"><input name="location" class="form-control" placeholder="Địa điểm" /></div>
+                <div class="mb-3"><input name="note" class="form-control" placeholder="Ghi chú" /></div>
+                <button class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Ghi sự kiện</button>
+            </form>
+        }
+    </div></div></div>
+</div>
