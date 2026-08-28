@@ -6,9 +6,15 @@ using MiniTrace.Services;
 
 namespace MiniTrace.Controllers;
 
-public class HomeController(ITraceService svc) : Controller
+public class HomeController : Controller
 {
-    public async Task<IActionResult> Index() { ViewBag.Dash = await svc.DashboardAsync(); return View(); }
+    // SPA React (admin) ở "/". Trang tra cứu công khai /Trace (Razor) giữ nguyên cho người tiêu dùng.
+    public IActionResult Index() => Redirect("/index.html");
+}
+
+public class LegacyController(ITraceService svc) : Controller
+{
+    public async Task<IActionResult> Index() { ViewBag.Dash = await svc.DashboardAsync(); return View("~/Views/Home/Index.cshtml"); }
 }
 
 public class ProductController(ITraceService svc) : Controller
