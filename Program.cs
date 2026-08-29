@@ -59,6 +59,26 @@ app.MapGet("/api/trace", async (string code, ITraceService svc) =>
     });
 });
 
+// API tích hợp: MiniWMS ghi sổ phiếu kho → ghi sự kiện truy xuất cho lô hàng (mã lô = số phiếu).
+app.MapPost("/api/ext/wh-event", async (WhEventDto dto, ITraceService svc, AppDbContext db, HttpContext ctx) =>
+{
+    if (string.IsNullOrWhiteSpace(dto.Product) || string.IsNullOrWhiteSpace(dto.LotNo))
+        return Results.BadRequest(new { error = "Cần Product và LotNo." });
+    var name = dto.Product.Trim();
+    var prod = await db.Products.FirstOrDefaultAsync(p => p.Name == name);
+    if (prod == null)
+    {
+        await svc.CreateProductAsync(new Product { Name = name, Origin = dto.Location, Manufacturer = "MiniWMS" });
+        prod = await db.Products.FirstOrDefaultAsync(p => p.Name == name);
+    }
+    var unit = await db.Units.Include(u => u.Events).FirstOrDefaultAsync(u => u.ProductId == prod!.Id && u.LotNo == dto.LotNo);
+    var unitId = unit?.Id ?? await svc.CreateUnitAsync(prod!.Id, dto.LotNo.Trim());
+    var (ok, msg) = await svc.AddEventAsync(unitId, (EventType)dto.Stage, dto.Location ?? "Kho", "MiniWMS", dto.Note);
+    var u2 = await svc.GetUnitAsync(unitId);
+    var baseUrl = $"{ctx.Request.Scheme}://{ctx.Request.Host}";
+    return Results.Ok(new { code = u2!.Code, ok, msg, traceUrl = $"{baseUrl}/Trace?code={u2.Code}" });
+});
+
 app.MapPost("/api/orgs/register", async (RegisterOrgDto dto, AppDbContext db) =>
 {
     if (string.IsNullOrWhiteSpace(dto.Name)) return Results.BadRequest(new { error = "Cần Name." });
@@ -71,3 +91,4 @@ app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Inde
 app.Run();
 
 record RegisterOrgDto(string Name);
+record WhEventDto(string Product, string LotNo, int Stage, string? Location, string? Note);
