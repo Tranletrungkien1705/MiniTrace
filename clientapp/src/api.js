@@ -12,6 +12,7 @@ export const api = {
   dashboard: () => req('/dashboard'),
   products: () => req('/products'),
   createProduct: (b) => req('/products', { method: 'POST', body: b }),
+  importPim: () => req('/products/import-pim', { method: 'POST' }),
   units: (q) => req(`/units${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   unit: (id) => req(`/units/${id}`),
   createUnit: (b) => req('/units', { method: 'POST', body: b }),

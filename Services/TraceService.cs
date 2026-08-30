@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using MiniTrace.Data;
 using MiniTrace.Models;
@@ -16,11 +17,32 @@ public interface ITraceService
     Task<(bool ok, string msg)> AddEventAsync(int unitId, EventType type, string location, string actor, string? note);
     Task<TraceUnit?> PublicLookupAsync(string code);   // xuyên tenant
     Task<TraceDash> DashboardAsync();
+    Task<(int added, int updated, int total)> ImportFromPimAsync();   // đồng bộ danh mục từ MiniPIM
 }
 
-public class TraceService(AppDbContext db) : ITraceService
+public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
     public Task<List<Product>> ProductsAsync() => db.Products.OrderBy(p => p.Code).ToListAsync();
+
+    // Đồng bộ danh mục chuẩn từ MiniPIM (nguồn master data) — upsert theo Code.
+    public async Task<(int added, int updated, int total)> ImportFromPimAsync()
+    {
+        var pimUrl = (Environment.GetEnvironmentVariable("PIM_URL") ?? "https://minipim.onrender.com").TrimEnd('/');
+        var http = httpFactory.CreateClient(); http.Timeout = TimeSpan.FromSeconds(20);
+        var items = await http.GetFromJsonAsync<List<PimProduct>>($"{pimUrl}/api/products") ?? [];
+        int added = 0, updated = 0;
+        foreach (var it in items)
+        {
+            if (string.IsNullOrWhiteSpace(it.code)) continue;
+            var p = await db.Products.FirstOrDefaultAsync(x => x.Code == it.code);
+            if (p == null) { p = new Product { Code = it.code.Trim() }; db.Products.Add(p); added++; }
+            else updated++;
+            p.Name = it.name ?? p.Name;
+        }
+        await db.SaveChangesAsync();
+        return (added, updated, added + updated);
+    }
+    private sealed record PimProduct(string code, string? name, string? group, string? uom, string? barcode, decimal costPrice, decimal salePrice);
     public async Task<int> CreateProductAsync(Product p)
     {
         if (string.IsNullOrWhiteSpace(p.Code)) p.Code = $"893{await db.Products.CountAsync() + 1:D7}";

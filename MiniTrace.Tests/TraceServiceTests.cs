@@ -16,7 +16,17 @@ public class TraceServiceTests
         var opt = new DbContextOptionsBuilder<AppDbContext>().UseSqlite(conn).Options;
         var db = new AppDbContext(opt, new TenantContext { OrgId = TenantContext.DefaultOrgId });
         db.Database.EnsureCreated();
-        return (db, new TraceService(db), conn);
+        return (db, new TraceService(db, new StubHttpFactory()), conn);
+    }
+
+    private sealed class StubHttpFactory : System.Net.Http.IHttpClientFactory
+    {
+        public System.Net.Http.HttpClient CreateClient(string name) => new(new FailHandler());
+        private sealed class FailHandler : System.Net.Http.HttpMessageHandler
+        {
+            protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage r, System.Threading.CancellationToken c)
+                => throw new System.Net.Http.HttpRequestException("stub");
+        }
     }
 
     private static async Task<int> NewUnit(ITraceService svc)

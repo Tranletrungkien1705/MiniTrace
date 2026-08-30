@@ -20,6 +20,7 @@ builder.Services.AddDbContext<AppDbContext>(o =>
 });
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddScoped<ITraceService, TraceService>();
+builder.Services.AddHttpClient();   // đồng bộ danh mục từ MiniPIM
 builder.Services.AddFleetObs();
 builder.Services.AddControllersWithViews();
 
