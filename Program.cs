@@ -88,8 +88,52 @@ app.MapPost("/api/orgs/register", async (RegisterOrgDto dto, AppDbContext db) =>
     return Results.Ok(new { orgId = org.Id, apiKey = org.ApiKey });
 });
 
+// Import sản phẩm truy xuất từ Mst_Part (dedupe theo Code)
+app.MapPost("/api/import/products", async (List<ImportTraceProdDto> rows, AppDbContext db, ITenantContext tc) =>
+{
+    if (rows == null || rows.Count == 0) return Results.BadRequest(new { error = "Không có dữ liệu." });
+    int added = 0, skipped = 0;
+    var orgId = tc.OrgId;
+    var existCodes = db.Products.Where(p => p.OrgId == orgId).Select(p => p.Code).ToHashSet();
+    foreach (var row in rows)
+    {
+        if (string.IsNullOrWhiteSpace(row.Code)) { skipped++; continue; }
+        if (existCodes.Contains(row.Code.Trim())) { skipped++; continue; }
+        db.Products.Add(new Product { OrgId = orgId, Code = row.Code.Trim(), Name = row.Name?.Trim() ?? row.Code.Trim(), Origin = row.Origin, Manufacturer = row.Manufacturer });
+        existCodes.Add(row.Code.Trim()); added++;
+    }
+    await db.SaveChangesAsync();
+    return Results.Ok(new { added, skipped, total = added + skipped });
+});
+
+// Import lô hàng truy xuất (dedupe theo LotNo+ProductCode), tự thêm sự kiện Produced
+app.MapPost("/api/import/units", async (List<ImportTraceUnitDto> rows, AppDbContext db, ITraceService svc, ITenantContext tc) =>
+{
+    if (rows == null || rows.Count == 0) return Results.BadRequest(new { error = "Không có dữ liệu." });
+    int added = 0, skipped = 0;
+    var orgId = tc.OrgId;
+    foreach (var row in rows)
+    {
+        if (string.IsNullOrWhiteSpace(row.LotNo) || string.IsNullOrWhiteSpace(row.ProductCode)) { skipped++; continue; }
+        var prod = await db.Products.FirstOrDefaultAsync(p => p.OrgId == orgId && p.Code == row.ProductCode.Trim());
+        if (prod == null) { skipped++; continue; }
+        var alreadyExists = await db.Units.AnyAsync(u => u.ProductId == prod.Id && u.LotNo == row.LotNo.Trim());
+        if (alreadyExists) { skipped++; continue; }
+        var unitId = await svc.CreateUnitAsync(prod.Id, row.LotNo.Trim());
+        var unit = await db.Units.FindAsync(unitId);
+        if (unit != null) unit.OrgId = orgId;
+        if (!string.IsNullOrWhiteSpace(row.Dealer))
+            await svc.AddEventAsync(unitId, EventType.Received, row.Dealer, row.Dealer, null);
+        await db.SaveChangesAsync();
+        added++;
+    }
+    return Results.Ok(new { added, skipped, total = added + skipped });
+});
+
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
 app.Run();
 
 record RegisterOrgDto(string Name);
 record WhEventDto(string Product, string LotNo, int Stage, string? Location, string? Note);
+record ImportTraceProdDto(string? Code, string? Name, string? Origin, string? Manufacturer);
+record ImportTraceUnitDto(string? ProductCode, string? LotNo, string? Dealer);
