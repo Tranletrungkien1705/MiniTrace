@@ -73,6 +73,7 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
 
     public async Task<(bool ok, string msg)> AddEventAsync(int unitId, EventType type, string location, string actor, string? note)
     {
+        if (!Enum.IsDefined(typeof(EventType), type)) return (false, "Loại sự kiện không hợp lệ.");
         var unit = await db.Units.Include(u => u.Events).FirstOrDefaultAsync(u => u.Id == unitId);
         if (unit == null) return (false, "Không tìm thấy đơn vị truy xuất.");
         var last = unit.LastStage;
