@@ -31,6 +31,7 @@ public class AppDbContext : DbContext
     public DbSet<Stamp> Stamps => Set<Stamp>();
     public DbSet<Box> Boxes => Set<Box>();
     public DbSet<BoxItem> BoxItems => Set<BoxItem>();
+    public DbSet<QueSync> QueSyncs => Set<QueSync>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -149,6 +150,11 @@ public class AppDbContext : DbContext
         {
             e.HasOne(x => x.Box).WithMany(x => x.Items).HasForeignKey(x => x.BoxId);
             e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();   // mỗi tem chỉ nằm trong 1 hộp
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<QueSync>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.NetworkId, x.QueSyncNo, x.TableCode }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

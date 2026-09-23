@@ -61,7 +61,11 @@ export const api = {
   box: (id) => req(`/boxes/${id}`),
   createBox: (b) => req('/boxes', { method: 'POST', body: b }),
   addStampsToBox: (id, b) => req(`/boxes/${id}/stamps`, { method: 'POST', body: b }),
-  deleteBox: (id) => req(`/boxes/${id}`, { method: 'DELETE' })
+  deleteBox: (id) => req(`/boxes/${id}`, { method: 'DELETE' }),
+  queSyncs: (q) => req(`/que-syncs${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveQueSync: (b) => req('/que-syncs', { method: 'POST', body: b }),
+  markQueSync: (id, b) => req(`/que-syncs/${id}/mark`, { method: 'POST', body: b }),
+  deleteQueSync: (id) => req(`/que-syncs/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

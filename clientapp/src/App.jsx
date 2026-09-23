@@ -30,7 +30,8 @@ function Layout() {
         <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink>
         <NavLink to="/records">Sự kiện truy xuất</NavLink>
         <NavLink to="/stamps">Sinh tem</NavLink>
-        <NavLink to="/boxes">Đóng hộp</NavLink></nav>
+        <NavLink to="/boxes">Đóng hộp</NavLink>
+        <NavLink to="/que-syncs">Hàng đợi đồng bộ</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1052,6 +1053,69 @@ function BoxDetail({ id, onClose, onChanged }) {
   )
 }
 
+function QueSyncs() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.queSyncs(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (x) => {
+    if (!window.confirm(`Xóa bản ghi hàng đợi ${x.queSyncNo}?`)) return
+    try { const r = await api.deleteQueSync(x.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  const mark = async (x, status) => {
+    try { const r = await api.markQueSync(x.id, { status }); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Hàng đợi đồng bộ</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / bảng / môi trường…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, networkId: '', queSyncNo: '', tableCode: '', flagSyncBL: false, remark: '' })}>+ Thêm vào hàng đợi</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Hàng đợi đồng bộ dữ liệu truy xuất (GS1 MstSv_QueSync) — mỗi dòng là một bản ghi danh mục/sự kiện (TableCode) cần đẩy lên máy chủ eTEM/ELTS theo môi trường (NetworkID). Bộ (NetworkID, QueSyncNo, TableCode) duy nhất để chống đẩy trùng.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Môi trường</th><th>Mã bản ghi</th><th>Loại dữ liệu</th><th>Blockchain</th><th>Trạng thái</th><th className="right">Thử lại</th><th>Đồng bộ lúc</th><th></th></tr></thead>
+          <tbody>{rows.map(x => (
+            <tr key={x.id}><td>{x.networkId}</td><td style={{ fontFamily: 'monospace' }}>{x.queSyncNo}</td>
+              <td style={{ fontFamily: 'monospace' }}>{x.tableCode}</td>
+              <td>{x.flagSyncBL ? <Badge text="Có" css="info" /> : <span className="muted">—</span>}</td>
+              <td><Badge text={x.statusText} css={x.css} />{x.errorDetail ? <div className="muted" style={{ fontSize: 11 }}>{x.errorDetail}</div> : null}</td>
+              <td className="right">{x.retryCount}</td><td>{x.syncedAt ? fmtDateTime(x.syncedAt) : '—'}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                {x.status !== 1 && <button className="btn ghost sm" onClick={() => mark(x, 1)}>Đã đồng bộ</button>}{' '}
+                {x.status !== 2 && <button className="btn ghost sm" onClick={() => mark(x, 2)}>Báo lỗi</button>}{' '}
+                <button className="btn ghost sm" onClick={() => setEdit(x)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(x)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>Hàng đợi trống.</td></tr>}</tbody></table>
+      </div>
+      {edit && <QueSyncForm row={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function QueSyncForm({ row, onClose, onSaved }) {
+  const [f, setF] = useState({ id: row.id, networkId: row.networkId || '', queSyncNo: row.queSyncNo || '', tableCode: row.tableCode || '', flagSyncBL: !!row.flagSyncBL, remark: row.remark || '' })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveQueSync({ id: f.id, networkId: f.networkId, queSyncNo: f.queSyncNo, tableCode: f.tableCode, flagSyncBL: f.flagSyncBL, remark: f.remark }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa hàng đợi ${f.queSyncNo}` : 'Thêm vào hàng đợi đồng bộ'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Môi trường (NetworkID) *"><input value={f.networkId} onChange={e => up('networkId', e.target.value)} placeholder="vd: Manufacturer" /></Field>
+        <Field label="Loại dữ liệu (TableCode) *"><input value={f.tableCode} onChange={e => up('tableCode', e.target.value)} placeholder="vd: Mst_CTE" /></Field></div>
+      <Field label="Mã bản ghi nguồn (QueSyncNo) *"><input value={f.queSyncNo} onChange={e => up('queSyncNo', e.target.value)} placeholder="vd: PRODUCTION_IN" /></Field>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagSyncBL} onChange={e => up('flagSyncBL', e.target.checked)} /> Đồng bộ lên blockchain (FlagSyncBL)</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần đủ môi trường + mã bản ghi + loại dữ liệu; bộ ba này duy nhất trong tenant; lưu xong bản ghi quay về trạng thái chờ đồng bộ.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1072,6 +1136,7 @@ export default function App() {
         <Route path="records" element={<Records />} />
         <Route path="stamps" element={<Stamps />} />
         <Route path="boxes" element={<Boxes />} />
+        <Route path="que-syncs" element={<QueSyncs />} />
       </Route>
     </Routes>
   )

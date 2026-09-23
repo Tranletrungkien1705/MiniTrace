@@ -74,6 +74,11 @@ public interface ITraceService
     Task<(bool ok, string msg)> CreateBoxAsync(string boxNo, string? productCode, string? productName, string? remark);
     Task<(bool ok, string msg)> AddStampsToBoxAsync(int boxId, List<string> idNos, string? invCode);
     Task<(bool ok, string msg)> DeleteBoxAsync(int id);
+    // Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM)
+    Task<List<QueSync>> QueSyncsAsync(string? q);
+    Task<(bool ok, string msg)> SaveQueSyncAsync(int id, string networkId, string queSyncNo, string tableCode, bool flagSyncBL, string? remark);
+    Task<(bool ok, string msg)> MarkQueSyncAsync(int id, QueSyncStatus status, string? errorDetail);
+    Task<(bool ok, string msg)> DeleteQueSyncAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1025,5 +1030,84 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Boxes.Remove(box);
         await db.SaveChangesAsync();
         return (true, "Đã xóa hộp và toàn bộ tem trong hộp.");
+    }
+
+    // ===== Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM) =====
+    // Mỗi dòng = 1 bản ghi danh mục/sự kiện (TableCode) cần đẩy lên máy chủ eTEM/ELTS theo môi trường (NetworkID).
+    // Áp quy tắc InBrandCloud (MstSv_QueSync_CreateX + MstSv_QueSync_CheckDB):
+    //  (1) Cần NetworkID + QueSyncNo + TableCode.
+    //  (2) Bộ (NetworkID, QueSyncNo, TableCode) duy nhất trong tenant — chống đẩy trùng.
+    //  (3) Bản ghi mới mặc định FlagSync = true (đang chờ đồng bộ).
+    public async Task<List<QueSync>> QueSyncsAsync(string? q)
+    {
+        var query = db.QueSyncs.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(x => x.QueSyncNo.Contains(q) || x.TableCode.Contains(q) || x.NetworkId.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(x => x.CreatedAt).Take(500).ToList();
+    }
+
+    public async Task<(bool ok, string msg)> SaveQueSyncAsync(int id, string networkId, string queSyncNo, string tableCode, bool flagSyncBL, string? remark)
+    {
+        networkId = (networkId ?? "").Trim();
+        queSyncNo = (queSyncNo ?? "").Trim();
+        tableCode = (tableCode ?? "").Trim();
+        // (1) Cần đủ 3 khoá nhận diện bản ghi cần đồng bộ.
+        if (networkId.Length == 0) return (false, "Cần môi trường đồng bộ (NetworkID).");
+        if (queSyncNo.Length == 0) return (false, "Cần mã bản ghi nguồn (QueSyncNo).");
+        if (tableCode.Length == 0) return (false, "Cần loại dữ liệu (TableCode).");
+        // (2) Bộ (NetworkID, QueSyncNo, TableCode) duy nhất trong tenant.
+        if (await db.QueSyncs.AnyAsync(x => x.NetworkId == networkId && x.QueSyncNo == queSyncNo && x.TableCode == tableCode && x.Id != id))
+            return (false, $"Bản ghi '{queSyncNo}' ({tableCode}) đã có trong hàng đợi của môi trường '{networkId}'.");
+
+        QueSync row;
+        if (id > 0)
+        {
+            row = await db.QueSyncs.FirstOrDefaultAsync(x => x.Id == id) ?? null!;
+            if (row == null) return (false, "Không tìm thấy bản ghi hàng đợi.");
+        }
+        else { row = new QueSync(); db.QueSyncs.Add(row); }
+
+        row.NetworkId = networkId; row.QueSyncNo = queSyncNo; row.TableCode = tableCode;
+        row.FlagSyncBL = flagSyncBL;
+        row.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        // (3) Bản ghi mới/chỉnh sửa quay về trạng thái chờ đồng bộ.
+        row.FlagSync = true; row.Status = QueSyncStatus.Pending; row.ErrorDetail = null; row.SyncedAt = null;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật hàng đợi đồng bộ." : "Đã thêm vào hàng đợi đồng bộ.");
+    }
+
+    // Đánh dấu kết quả đồng bộ (worker gọi sau khi đẩy lên eTEM/ELTS).
+    public async Task<(bool ok, string msg)> MarkQueSyncAsync(int id, QueSyncStatus status, string? errorDetail)
+    {
+        var row = await db.QueSyncs.FirstOrDefaultAsync(x => x.Id == id);
+        if (row == null) return (false, "Không tìm thấy bản ghi hàng đợi.");
+        row.Status = status;
+        if (status == QueSyncStatus.Synced)
+        {
+            row.FlagSync = false; row.SyncedAt = DateTime.Now; row.ErrorDetail = null;
+        }
+        else if (status == QueSyncStatus.Failed)
+        {
+            row.FlagSync = true; row.RetryCount += 1;
+            row.ErrorDetail = string.IsNullOrWhiteSpace(errorDetail) ? "Đồng bộ lỗi." : errorDetail.Trim();
+        }
+        else { row.FlagSync = true; row.SyncedAt = null; }
+        await db.SaveChangesAsync();
+        return (true, status switch
+        {
+            QueSyncStatus.Synced => "Đã đánh dấu đồng bộ thành công.",
+            QueSyncStatus.Failed => "Đã ghi nhận đồng bộ lỗi.",
+            _ => "Đã đưa về trạng thái chờ đồng bộ."
+        });
+    }
+
+    public async Task<(bool ok, string msg)> DeleteQueSyncAsync(int id)
+    {
+        var row = await db.QueSyncs.FirstOrDefaultAsync(x => x.Id == id);
+        if (row == null) return (false, "Không tìm thấy bản ghi hàng đợi.");
+        db.QueSyncs.Remove(row);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa bản ghi hàng đợi.");
     }
 }

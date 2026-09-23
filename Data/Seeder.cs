@@ -257,6 +257,17 @@ public static class Seeder
                 new BoxItem { BoxId = box.Id, BoxNo = box.BoxNo, IDNo = "P000003", ProductCode = "8930001001", InvCode = "KHO-FG-ST", FlagActive = true });
             await db.SaveChangesAsync();
         }
+
+        // Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM) — bản ghi mẫu chờ đẩy lên eTEM/ELTS.
+        if (!await db.QueSyncs.AnyAsync())
+        {
+            db.QueSyncs.AddRange(
+                new QueSync { NetworkId = "Manufacturer", QueSyncNo = "PRODUCTION_IN", TableCode = "Mst_CTE", FlagSync = true, FlagSyncBL = false, Status = QueSyncStatus.Pending, Remark = "Đẩy danh mục sự kiện sản xuất lên eTEM" },
+                new QueSync { NetworkId = "Manufacturer", QueSyncNo = "LOT_NO", TableCode = "Mst_KDE", FlagSync = true, FlagSyncBL = false, Status = QueSyncStatus.Pending, Remark = "Đẩy thành phần dữ liệu số lô" },
+                new QueSync { NetworkId = "Manufacturer", QueSyncNo = "EV2601010001A", TableCode = "Event_Event", FlagSync = false, FlagSyncBL = true, Status = QueSyncStatus.Synced, SyncedAt = DateTime.Now.AddDays(-1), Remark = "Sự kiện sản xuất đã đẩy + ghi blockchain" },
+                new QueSync { NetworkId = "Distributor", QueSyncNo = "SALE_TO_DISTRIBUTOR", TableCode = "Mst_CTE", FlagSync = true, FlagSyncBL = false, Status = QueSyncStatus.Failed, RetryCount = 2, ErrorDetail = "eTEM timeout khi đẩy sự kiện xuất kho", Remark = "Cần thử lại" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -270,7 +281,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "QueSyncs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

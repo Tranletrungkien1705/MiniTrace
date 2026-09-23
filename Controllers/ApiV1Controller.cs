@@ -424,6 +424,37 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM) =====
+    [HttpGet("que-syncs")]
+    public async Task<IActionResult> QueSyncs([FromQuery] string? q)
+        => Ok((await svc.QueSyncsAsync(q)).Select(x => new
+        {
+            x.Id, x.NetworkId, x.QueSyncNo, x.TableCode, x.FlagSync, x.FlagSyncBL,
+            status = (int)x.Status, statusText = Ui.QueSync(x.Status).text, css = Ui.QueSync(x.Status).css,
+            x.RetryCount, x.ErrorDetail, x.SyncedAt, x.Remark, x.CreatedAt
+        }));
+
+    [HttpPost("que-syncs")]
+    public async Task<IActionResult> SaveQueSync([FromBody] QueSyncReq r)
+    {
+        var (ok, msg) = await svc.SaveQueSyncAsync(r.Id, r.NetworkId ?? "", r.QueSyncNo ?? "", r.TableCode ?? "", r.FlagSyncBL, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("que-syncs/{id:int}/mark")]
+    public async Task<IActionResult> MarkQueSync(int id, [FromBody] QueSyncMarkReq r)
+    {
+        var (ok, msg) = await svc.MarkQueSyncAsync(id, (QueSyncStatus)r.Status, r.ErrorDetail);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("que-syncs/{id:int}")]
+    public async Task<IActionResult> DeleteQueSync(int id)
+    {
+        var (ok, msg) = await svc.DeleteQueSyncAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -470,4 +501,6 @@ public class RecordSpecReq { public string? KdeCode { get; set; } public string?
 public class StampBatchReq { public string? GenTimesNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public int QrType { get; set; } public int Qty { get; set; } public bool FlagPIN { get; set; } public string? ProductionLotNo { get; set; } public string? ProductionDate { get; set; } public string? ShiftInCode { get; set; } public string? UserKCS { get; set; } public string? Remark { get; set; } }
 public class BoxReq { public string? BoxNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public string? Remark { get; set; } }
 public class BoxStampsReq { public List<string>? IdNos { get; set; } public string? InvCode { get; set; } }
+public class QueSyncReq { public int Id { get; set; } public string? NetworkId { get; set; } public string? QueSyncNo { get; set; } public string? TableCode { get; set; } public bool FlagSyncBL { get; set; } public string? Remark { get; set; } }
+public class QueSyncMarkReq { public int Status { get; set; } public string? ErrorDetail { get; set; } }
 

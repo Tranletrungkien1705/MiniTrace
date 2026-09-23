@@ -41,4 +41,12 @@ public static class Ui
         QrType.Tem => ("Tem thường", "secondary", "bi-tag"),
         _ => (t.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) QueSync(QueSyncStatus s) => s switch
+    {
+        QueSyncStatus.Pending => ("Chờ đồng bộ", "warning", "bi-hourglass-split"),
+        QueSyncStatus.Synced => ("Đã đồng bộ", "success", "bi-cloud-check"),
+        QueSyncStatus.Failed => ("Đồng bộ lỗi", "danger", "bi-cloud-slash"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

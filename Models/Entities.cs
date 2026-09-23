@@ -435,6 +435,42 @@ public class BoxItem : IOrgOwned
     public Box Box { get; set; } = null!;
 }
 
+/// <summary>
+/// Trạng thái đồng bộ của một bản ghi trong hàng đợi (MstSv_QueSync của InBrandCloud eTEM).
+/// PENDING = chờ đẩy lên máy chủ eTEM/ELTS, SYNCED = đã đẩy thành công, FAILED = đẩy lỗi.
+/// </summary>
+public enum QueSyncStatus
+{
+    Pending = 0,   // PENDING — chờ đồng bộ
+    Synced = 1,    // SYNCED — đã đồng bộ
+    Failed = 2     // FAILED — đồng bộ lỗi
+}
+
+/// <summary>
+/// Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM).
+/// Mỗi dòng = 1 bản ghi danh mục/sự kiện (TableCode) cần đẩy lên máy chủ eTEM/ELTS
+/// theo một môi trường (NetworkID). QueSyncNo là mã bản ghi nguồn (vd: mã CTE, mã KDE,
+/// mã sự kiện EventNo…). FlagSync = đang chờ đẩy; FlagSyncBL = có đẩy lên blockchain không.
+/// Cơ chế: khi danh mục/sự kiện thay đổi → tạo 1 dòng hàng đợi; worker đẩy lên eTEM rồi
+/// đánh dấu đã đồng bộ (doc 06 §6.2).
+/// </summary>
+public class QueSync : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string NetworkId { get; set; } = "";      // NetworkID — môi trường/loại mạng đồng bộ
+    public string QueSyncNo { get; set; } = "";       // QueSyncNo — mã bản ghi nguồn cần đồng bộ
+    public string TableCode { get; set; } = "";       // TableCode — bảng/loại dữ liệu (vd: Mst_CTE, Event_Event)
+    public bool FlagSync { get; set; } = true;         // FlagSync — đang chờ đồng bộ
+    public bool FlagSyncBL { get; set; }               // FlagSyncBL — đồng bộ lên blockchain
+    public QueSyncStatus Status { get; set; } = QueSyncStatus.Pending;  // trạng thái đồng bộ
+    public int RetryCount { get; set; }                // số lần thử lại
+    public string? ErrorDetail { get; set; }           // chi tiết lỗi (nếu đồng bộ lỗi)
+    public DateTime? SyncedAt { get; set; }            // thời điểm đồng bộ thành công
+    public string? Remark { get; set; }                // ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {
