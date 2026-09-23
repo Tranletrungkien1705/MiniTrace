@@ -113,6 +113,10 @@ public interface ITraceService
     Task<ProductId?> GetProductIdAsync(int id);
     Task<(bool ok, string msg)> SaveProductIdAsync(int id, string productID, string? specCode, string? productionDate, string? lotNo, string? buyDate, string? secretNo, string? warrantyStartDate, string? warrantyExpiredDate, string? warrantyDuration, string? refNo1, string? refBiz1, string? refNo2, string? refBiz2, string? refNo3, string? refBiz3, string? buyer, string? networkProductIdCode, ProductIdStatus status, string? customField1, string? customField2, string? customField3, string? customField4, string? customField5, string? remark);
     Task<(bool ok, string msg)> DeleteProductIdAsync(int id);
+    // Cấu hình trường hiển thị khi tra cứu (Mst_ConfigColumnSearch của InBrandCloud eTEM)
+    Task<List<ConfigColumnSearch>> ConfigColumnSearchesAsync(string? q);
+    Task<(bool ok, string msg)> SaveConfigColumnSearchAsync(int id, string coumnID, string tabID, string? tabName, string? networkId, string typeId, int idxInTab, string? columnDesc, bool flagView, bool flagOsOrgView, bool flagShow, string? esColumnId, string? eltsObjectId);
+    Task<(bool ok, string msg)> DeleteConfigColumnSearchAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1609,5 +1613,61 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.ProductIds.Remove(pid);
         await db.SaveChangesAsync();
         return (true, "Đã xóa định danh sản phẩm.");
+    }
+
+    // ===== Cấu hình trường hiển thị khi tra cứu (Mst_ConfigColumnSearch của InBrandCloud eTEM) =====
+    // "Từ điển" cấu hình cột hiển thị cho màn tra cứu truy xuất (tab + thứ tự + cờ hiển thị trong/ngoài Org).
+    public async Task<List<ConfigColumnSearch>> ConfigColumnSearchesAsync(string? q)
+    {
+        var query = db.ConfigColumnSearches.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(c => c.CoumnID.Contains(q) || c.TabID.Contains(q) || (c.ColumnDesc != null && c.ColumnDesc.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderBy(c => c.TabID).ThenBy(c => c.IdxInTab).ThenBy(c => c.CoumnID).ToList();
+    }
+
+    // Lưu cấu hình trường hiển thị. Áp quy tắc InBrandCloud (Mst_ConfigColumnSearch_CheckDB):
+    //  (1) Cần mã trường (CoumnID) + mã Tab (TabID) + loại bảng dữ liệu (TypeID).
+    //  (2) Bộ ba (CoumnID, NetworkID, TypeID) duy nhất trong tenant — chống trùng cấu hình.
+    public async Task<(bool ok, string msg)> SaveConfigColumnSearchAsync(int id, string coumnID, string tabID, string? tabName, string? networkId, string typeId, int idxInTab, string? columnDesc, bool flagView, bool flagOsOrgView, bool flagShow, string? esColumnId, string? eltsObjectId)
+    {
+        coumnID = (coumnID ?? "").Trim();
+        tabID = (tabID ?? "").Trim();
+        typeId = (typeId ?? "").Trim();
+        networkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        if (coumnID.Length == 0) return (false, "Cần mã trường (CoumnID).");
+        if (tabID.Length == 0) return (false, "Cần mã Tab tra cứu (TabID).");
+        if (typeId.Length == 0) return (false, "Cần loại bảng dữ liệu (TypeID).");
+        // (2) Bộ ba (CoumnID, NetworkID, TypeID) duy nhất trong tenant.
+        if (await db.ConfigColumnSearches.AnyAsync(c => c.CoumnID == coumnID && c.NetworkId == networkId && c.TypeId == typeId && c.Id != id))
+            return (false, $"Trường '{coumnID}' (mạng '{networkId ?? "—"}', loại '{typeId}') đã tồn tại.");
+
+        ConfigColumnSearch cfg;
+        if (id > 0)
+        {
+            cfg = await db.ConfigColumnSearches.FirstOrDefaultAsync(c => c.Id == id) ?? null!;
+            if (cfg == null) return (false, "Không tìm thấy cấu hình trường.");
+        }
+        else { cfg = new ConfigColumnSearch(); db.ConfigColumnSearches.Add(cfg); }
+
+        cfg.CoumnID = coumnID; cfg.TabID = tabID;
+        cfg.TabName = string.IsNullOrWhiteSpace(tabName) ? null : tabName.Trim();
+        cfg.NetworkId = networkId; cfg.TypeId = typeId;
+        cfg.IdxInTab = idxInTab;
+        cfg.ColumnDesc = string.IsNullOrWhiteSpace(columnDesc) ? null : columnDesc.Trim();
+        cfg.FlagView = flagView; cfg.FlagOsOrgView = flagOsOrgView; cfg.FlagShow = flagShow;
+        cfg.EsColumnId = string.IsNullOrWhiteSpace(esColumnId) ? null : esColumnId.Trim();
+        cfg.EltsObjectId = string.IsNullOrWhiteSpace(eltsObjectId) ? null : eltsObjectId.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật cấu hình trường." : "Đã thêm cấu hình trường.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteConfigColumnSearchAsync(int id)
+    {
+        var cfg = await db.ConfigColumnSearches.FirstOrDefaultAsync(c => c.Id == id);
+        if (cfg == null) return (false, "Không tìm thấy cấu hình trường.");
+        db.ConfigColumnSearches.Remove(cfg);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa cấu hình trường.");
     }
 }

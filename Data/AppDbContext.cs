@@ -40,6 +40,7 @@ public class AppDbContext : DbContext
     public DbSet<Secret> Secrets => Set<Secret>();
     public DbSet<StampPair> StampPairs => Set<StampPair>();
     public DbSet<ProductId> ProductIds => Set<ProductId>();
+    public DbSet<ConfigColumnSearch> ConfigColumnSearches => Set<ConfigColumnSearch>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -205,6 +206,11 @@ public class AppDbContext : DbContext
         b.Entity<ProductId>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.ProductID }).IsUnique();   // mã định danh sản phẩm duy nhất trong tenant
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<ConfigColumnSearch>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.CoumnID, x.NetworkId, x.TypeId }).IsUnique();   // bộ ba duy nhất trong tenant
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

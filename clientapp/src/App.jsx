@@ -38,7 +38,8 @@ function Layout() {
         <NavLink to="/network-orgs">Tổ chức mạng</NavLink>
         <NavLink to="/secrets">Số bí mật</NavLink>
         <NavLink to="/stamp-pairs">Cặp tem</NavLink>
-        <NavLink to="/product-ids">Định danh sản phẩm</NavLink></nav>
+        <NavLink to="/product-ids">Định danh sản phẩm</NavLink>
+        <NavLink to="/config-column-searches">Cấu hình trường tra cứu</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1614,6 +1615,77 @@ function ProductIdForm({ row, onClose, onSaved }) {
   )
 }
 
+function ConfigColumnSearches() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.configColumnSearches(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (c) => {
+    if (!window.confirm(`Xóa cấu hình trường ${c.coumnID}?`)) return
+    try { const r = await api.deleteConfigColumnSearch(c.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Cấu hình trường tra cứu</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã trường / tab…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({})}>+ Thêm trường</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Cấu hình trường hiển thị khi tra cứu (GS1 Mst_ConfigColumnSearch) — "từ điển" cột hiển thị cho màn tra cứu truy xuất: gắn trường vào Tab theo loại bảng dữ liệu, quy định thứ tự và cờ hiển thị trong/ngoài Org.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã trường</th><th>Tab</th><th>Loại bảng</th><th>Môi trường</th><th className="right">Thứ tự</th><th>Mô tả</th><th>Hiển thị</th><th></th></tr></thead>
+          <tbody>{rows.map(c => (
+            <tr key={c.id}><td style={{ fontFamily: 'monospace' }}>{c.coumnID}</td>
+              <td>{c.tabName || c.tabID}</td><td className="muted">{c.typeId}</td><td>{c.networkId || '—'}</td>
+              <td className="right">{c.idxInTab}</td><td>{c.columnDesc || '—'}</td>
+              <td><Badge text={c.flagView ? 'Trong Org' : 'Ẩn'} css={c.flagView ? 'success' : 'secondary'} />{' '}
+                {c.flagOsOrgView && <Badge text="Ngoài Org" css="info" />}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(c)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(c)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>Chưa có cấu hình trường.</td></tr>}</tbody></table>
+      </div>
+      {edit && <ConfigColumnSearchForm row={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function ConfigColumnSearchForm({ row, onClose, onSaved }) {
+  const [f, setF] = useState({
+    id: row.id || 0, coumnID: row.coumnID || '', tabID: row.tabID || '', tabName: row.tabName || '',
+    networkId: row.networkId || '', typeId: row.typeId || '', idxInTab: row.idxInTab ?? 0, columnDesc: row.columnDesc || '',
+    flagView: row.flagView ?? true, flagOsOrgView: row.flagOsOrgView ?? false, flagShow: row.flagShow ?? true,
+    esColumnId: row.esColumnId || '', eltsObjectId: row.eltsObjectId || ''
+  })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveConfigColumnSearch({ ...f, idxInTab: Number(f.idxInTab) }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? 'Sửa cấu hình trường' : 'Thêm cấu hình trường'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã trường (CoumnID) *"><input value={f.coumnID} onChange={e => up('coumnID', e.target.value)} placeholder="vd: ProductName" /></Field>
+        <Field label="Mã Tab (TabID) *"><input value={f.tabID} onChange={e => up('tabID', e.target.value)} placeholder="vd: TAB_PRODUCT" /></Field></div>
+      <div className="row"><Field label="Tên Tab"><input value={f.tabName} onChange={e => up('tabName', e.target.value)} placeholder="vd: Thông tin sản phẩm" /></Field>
+        <Field label="Loại bảng dữ liệu (TypeID) *"><input value={f.typeId} onChange={e => up('typeId', e.target.value)} placeholder="vd: Mst_Product" /></Field></div>
+      <div className="row"><Field label="Môi trường (NetworkID)"><input value={f.networkId} onChange={e => up('networkId', e.target.value)} placeholder="vd: Manufacturer" /></Field>
+        <Field label="Thứ tự trong Tab"><input type="number" value={f.idxInTab} onChange={e => up('idxInTab', e.target.value)} /></Field></div>
+      <Field label="Mô tả trường (ColumnDesc)"><input value={f.columnDesc} onChange={e => up('columnDesc', e.target.value)} /></Field>
+      <div className="row"><Field label="Mã ES cột (ESColumnID)"><input value={f.esColumnId} onChange={e => up('esColumnId', e.target.value)} /></Field>
+        <Field label="Mã ElasticSearch (ELTSObjectId)"><input value={f.eltsObjectId} onChange={e => up('eltsObjectId', e.target.value)} /></Field></div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagView} onChange={e => up('flagView', e.target.checked)} /> Hiển thị cho người dùng trong Org</label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagOsOrgView} onChange={e => up('flagOsOrgView', e.target.checked)} /> Hiển thị cho người dùng ngoài Org (người tiêu dùng)</label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagShow} onChange={e => up('flagShow', e.target.checked)} /> Cờ hiển thị (FlagShow)</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã trường + mã Tab + loại bảng dữ liệu; bộ ba (CoumnID, NetworkID, TypeID) duy nhất trong tenant.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1642,6 +1714,7 @@ export default function App() {
         <Route path="secrets" element={<Secrets />} />
         <Route path="stamp-pairs" element={<StampPairs />} />
         <Route path="product-ids" element={<ProductIds />} />
+        <Route path="config-column-searches" element={<ConfigColumnSearches />} />
       </Route>
     </Routes>
   )

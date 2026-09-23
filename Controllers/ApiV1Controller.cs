@@ -663,6 +663,30 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Cấu hình trường hiển thị khi tra cứu (Mst_ConfigColumnSearch của InBrandCloud eTEM) =====
+    [HttpGet("config-column-searches")]
+    public async Task<IActionResult> ConfigColumnSearches([FromQuery] string? q)
+        => Ok((await svc.ConfigColumnSearchesAsync(q)).Select(c => new
+        {
+            c.Id, c.CoumnID, c.TabID, c.TabName, c.NetworkId, c.TypeId, c.IdxInTab, c.ColumnDesc,
+            c.FlagView, c.FlagOsOrgView, c.FlagShow, c.EsColumnId, c.EltsObjectId, c.CreatedAt
+        }));
+
+    [HttpPost("config-column-searches")]
+    public async Task<IActionResult> SaveConfigColumnSearch([FromBody] ConfigColumnSearchReq r)
+    {
+        var (ok, msg) = await svc.SaveConfigColumnSearchAsync(r.Id, r.CoumnID ?? "", r.TabID ?? "", r.TabName, r.NetworkId, r.TypeId ?? "",
+            r.IdxInTab, r.ColumnDesc, r.FlagView, r.FlagOsOrgView, r.FlagShow, r.EsColumnId, r.EltsObjectId);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("config-column-searches/{id:int}")]
+    public async Task<IActionResult> DeleteConfigColumnSearch(int id)
+    {
+        var (ok, msg) = await svc.DeleteConfigColumnSearchAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -741,3 +765,19 @@ public class ProductIdReq
     public string? Remark { get; set; }
 }
 
+public class ConfigColumnSearchReq
+{
+    public int Id { get; set; }
+    public string? CoumnID { get; set; }
+    public string? TabID { get; set; }
+    public string? TabName { get; set; }
+    public string? NetworkId { get; set; }
+    public string? TypeId { get; set; }
+    public int IdxInTab { get; set; }
+    public string? ColumnDesc { get; set; }
+    public bool FlagView { get; set; } = true;
+    public bool FlagOsOrgView { get; set; }
+    public bool FlagShow { get; set; } = true;
+    public string? EsColumnId { get; set; }
+    public string? EltsObjectId { get; set; }
+}

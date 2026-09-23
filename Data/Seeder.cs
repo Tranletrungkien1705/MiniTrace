@@ -368,6 +368,21 @@ public static class Seeder
                     RefNo1 = "HD25112533", RefBiz1 = "Hóa đơn bán", Remark = "Đang sửa chữa/đổi trả" });
             await db.SaveChangesAsync();
         }
+
+        // Cấu hình trường hiển thị khi tra cứu (Mst_ConfigColumnSearch của InBrandCloud eTEM) — "từ điển" cột hiển thị cho màn tra cứu.
+        if (!await db.ConfigColumnSearches.AnyAsync())
+        {
+            db.ConfigColumnSearches.AddRange(
+                new ConfigColumnSearch { CoumnID = "ProductName", TabID = "TAB_PRODUCT", TabName = "Thông tin sản phẩm", NetworkId = "Manufacturer", TypeId = "Mst_Product", IdxInTab = 1, ColumnDesc = "Tên sản phẩm", FlagView = true, FlagOsOrgView = true, FlagShow = true, EsColumnId = "productName" },
+                new ConfigColumnSearch { CoumnID = "ProductOrigin", TabID = "TAB_PRODUCT", TabName = "Thông tin sản phẩm", NetworkId = "Manufacturer", TypeId = "Mst_Product", IdxInTab = 2, ColumnDesc = "Xuất xứ", FlagView = true, FlagOsOrgView = true, FlagShow = true, EsColumnId = "productOrigin" },
+                new ConfigColumnSearch { CoumnID = "ProductionLotNo", TabID = "TAB_TRACE", TabName = "Hành trình truy xuất", NetworkId = "Manufacturer", TypeId = "Inv_InventoryVerifiedID", IdxInTab = 1, ColumnDesc = "Số lô sản xuất", FlagView = true, FlagOsOrgView = true, FlagShow = true, EsColumnId = "productionLotNo" },
+                new ConfigColumnSearch { CoumnID = "ProductionDate", TabID = "TAB_TRACE", TabName = "Hành trình truy xuất", NetworkId = "Manufacturer", TypeId = "Inv_InventoryVerifiedID", IdxInTab = 2, ColumnDesc = "Ngày sản xuất", FlagView = true, FlagOsOrgView = true, FlagShow = true, EsColumnId = "productionDate" },
+                new ConfigColumnSearch { CoumnID = "VerifyCount", TabID = "TAB_TRACE", TabName = "Hành trình truy xuất", NetworkId = "Manufacturer", TypeId = "Inv_InventoryVerifiedID", IdxInTab = 3, ColumnDesc = "Số lần quét", FlagView = true, FlagOsOrgView = false, FlagShow = true, EsColumnId = "verifyCount" },
+                new ConfigColumnSearch { CoumnID = "CustomerName", TabID = "TAB_DISTRIBUTION", TabName = "Lịch sử phân phối", NetworkId = "Distributor", TypeId = "InvF_InventoryHistInOutID", IdxInTab = 1, ColumnDesc = "Khách hàng nhận", FlagView = true, FlagOsOrgView = false, FlagShow = true, EsColumnId = "customerName" },
+                new ConfigColumnSearch { CoumnID = "AreaName", TabID = "TAB_DISTRIBUTION", TabName = "Lịch sử phân phối", NetworkId = "Distributor", TypeId = "InvF_InventoryHistInOutID", IdxInTab = 2, ColumnDesc = "Vùng thị trường", FlagView = true, FlagOsOrgView = false, FlagShow = true, EsColumnId = "areaName" },
+                new ConfigColumnSearch { CoumnID = "DriverName", TabID = "TAB_DISTRIBUTION", TabName = "Lịch sử phân phối", NetworkId = "Distributor", TypeId = "InvF_InventoryHistInOutID", IdxInTab = 3, ColumnDesc = "Tài xế vận chuyển", FlagView = true, FlagOsOrgView = false, FlagShow = false, EsColumnId = "driverName" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -381,7 +396,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

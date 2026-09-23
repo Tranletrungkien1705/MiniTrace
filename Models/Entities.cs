@@ -734,3 +734,30 @@ public class ProductId : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Cấu hình trường hiển thị khi tra cứu (Mst_ConfigColumnSearch của InBrandCloud eTEM).
+/// "Từ điển" cấu hình cột hiển thị cho màn tra cứu truy xuất: mỗi dòng gắn một trường
+/// (CoumnID) vào một Tab tra cứu (TabID/TabName) theo loại bảng dữ liệu (TypeID) và môi
+/// trường mạng (NetworkID). IdxInTab quyết định thứ tự hiển thị; FlagView = hiển thị cho
+/// người dùng trong Org, FlagOSOrgView = hiển thị cho người dùng ngoài Org (người tiêu dùng).
+/// Bộ ba (CoumnID, NetworkID, TypeID) duy nhất trong tenant — tương đương Mst_ConfigColumnSearch_CheckDB.
+/// </summary>
+public class ConfigColumnSearch : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string CoumnID { get; set; } = "";       // CoumnID — mã trường thuộc tab tra cứu
+    public string TabID { get; set; } = "";          // TabID — mã Tab trong tra cứu
+    public string? TabName { get; set; }              // TabName — tên Tab trong tra cứu
+    public string? NetworkId { get; set; }            // NetworkID — môi trường/loại mạng áp dụng
+    public string TypeId { get; set; } = "";         // TypeID — loại bảng dữ liệu tra ra
+    public int IdxInTab { get; set; }                 // IdxInTab — số thứ tự hiển thị trong Tab
+    public string? ColumnDesc { get; set; }           // ColumnDesc — mô tả trường
+    public bool FlagView { get; set; } = true;        // FlagView — 1: hiển thị cho user trong Org
+    public bool FlagOsOrgView { get; set; }           // FlagOSOrgView — hiển thị cho user ngoài Org
+    public bool FlagShow { get; set; } = true;        // FlagShow — cờ hiển thị
+    public string? EsColumnId { get; set; }           // ESColumnID — mã ElasticSearch của cột
+    public string? EltsObjectId { get; set; }         // ELTSObjectId — mã ElasticSearch
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}

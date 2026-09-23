@@ -91,7 +91,10 @@ export const api = {
   productIds: (q) => req(`/product-ids${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   productId: (id) => req(`/product-ids/${id}`),
   saveProductId: (b) => req('/product-ids', { method: 'POST', body: b }),
-  deleteProductId: (id) => req(`/product-ids/${id}`, { method: 'DELETE' })
+  deleteProductId: (id) => req(`/product-ids/${id}`, { method: 'DELETE' }),
+  configColumnSearches: (q) => req(`/config-column-searches${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveConfigColumnSearch: (b) => req('/config-column-searches', { method: 'POST', body: b }),
+  deleteConfigColumnSearch: (id) => req(`/config-column-searches/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'
