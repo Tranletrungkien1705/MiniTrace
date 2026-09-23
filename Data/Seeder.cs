@@ -31,6 +31,16 @@ public static class Seeder
                 ] };
             db.Units.Add(unit);
             await db.SaveChangesAsync();
+
+            // Lịch sử quét xác thực mẫu (chống hàng giả): 1 chính hãng + 1 nghi giả (quét nhiều nơi).
+            db.Verifications.AddRange(
+                new Verification { UnitId = unit.Id, Code = unit.Code, VerifyCount = 1, Status = VerifyStatus.Genuine,
+                    IpAddress = "203.113.10.5", Location = "TP.HCM", Latitude = 10.7769, Longitude = 106.7009, Phone = "0901234567",
+                    ScannedAt = DateTime.Now.AddDays(-6), Note = "Quét lần đầu tại điểm bán" },
+                new Verification { UnitId = unit.Id, Code = unit.Code, VerifyCount = 2, Status = VerifyStatus.Suspect,
+                    IpAddress = "42.118.7.9", Location = "Hà Nội", Latitude = 21.0278, Longitude = 105.8342,
+                    ScannedAt = DateTime.Now.AddDays(-2), Note = "Quét lại ở địa điểm khác — nghi hàng giả" });
+            await db.SaveChangesAsync();
         }
     }
 
@@ -38,7 +48,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

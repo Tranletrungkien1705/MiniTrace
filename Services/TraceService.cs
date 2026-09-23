@@ -18,7 +18,13 @@ public interface ITraceService
     Task<TraceUnit?> PublicLookupAsync(string code);   // xuyên tenant
     Task<TraceDash> DashboardAsync();
     Task<(int added, int updated, int total)> ImportFromPimAsync();   // đồng bộ danh mục từ MiniPIM
+    Task<VerifyResult?> VerifyAsync(string code, string? ip, string? location, double? lat, double? lng, string? phone);   // xác thực chống hàng giả
+    Task<List<Verification>> VerificationsAsync(string? q);
 }
+
+/// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
+public record VerifyResult(string Code, string Product, string? Origin, string? Manufacturer, string LotNo,
+    int VerifyCount, VerifyStatus Status, string StatusText, string Message, DateTime ScannedAt);
 
 public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
@@ -97,6 +103,55 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         return new TraceDash(
             await db.Products.CountAsync(), units.Count, await db.Events.CountAsync(),
             units.Count(u => u.LastStage == EventType.Sold), byStage);
+    }
+
+    // ===== Xác thực chống hàng giả (tương đương Inv_InventoryVerifiedID của InBrandCloud) =====
+    // Quy tắc (doc 09 §9): VerifyCount=1 → chính hãng; >1 → cảnh báo; quét nhiều nơi / sau khi đã bán → nghi hàng giả.
+    public async Task<VerifyResult?> VerifyAsync(string code, string? ip, string? location, double? lat, double? lng, string? phone)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+        var c = code.Trim();
+        var unit = await db.Units.IgnoreQueryFilters().Include(u => u.Product).Include(u => u.Events)
+            .FirstOrDefaultAsync(u => u.Code == c);
+        if (unit == null) return null;
+
+        var prior = await db.Verifications.IgnoreQueryFilters().Where(v => v.Code == c).ToListAsync();
+        var count = prior.Count + 1;
+
+        // Phát hiện hàng giả: quét ở vị trí KHÁC với các lần trước (nhiều nơi) hoặc sau khi đã bán cho NTD.
+        var sold = unit.LastStage == EventType.Sold;
+        var otherPlace = !string.IsNullOrWhiteSpace(location)
+            && prior.Any(v => !string.IsNullOrWhiteSpace(v.Location) && !string.Equals(v.Location, location, StringComparison.OrdinalIgnoreCase));
+        var status = count == 1 && !sold ? VerifyStatus.Genuine
+            : (sold || otherPlace) ? VerifyStatus.Suspect
+            : VerifyStatus.Warning;
+
+        var v = new Verification
+        {
+            OrgId = unit.OrgId, UnitId = unit.Id, Code = c, VerifyCount = count, Status = status,
+            IpAddress = ip, Location = location, Latitude = lat, Longitude = lng, Phone = phone
+        };
+        db.Verifications.Add(v);
+        await db.SaveChangesAsync();
+
+        var (text, msg) = status switch
+        {
+            VerifyStatus.Genuine => ("Chính hãng", "Sản phẩm chính hãng — xác thực thành công."),
+            VerifyStatus.Warning => ("Cảnh báo", $"Mã này đã được quét {count} lần — hãy kiểm tra kỹ trước khi mua."),
+            _ => ("Nghi hàng giả", sold
+                    ? "Mã đã bán cho người tiêu dùng nhưng vẫn bị quét lại — nghi hàng giả."
+                    : "Mã bị quét ở nhiều địa điểm khác nhau — nghi hàng giả.")
+        };
+        return new VerifyResult(unit.Code, unit.Product.Name, unit.Product.Origin, unit.Product.Manufacturer,
+            unit.LotNo, count, status, text, msg, v.ScannedAt);
+    }
+
+    public async Task<List<Verification>> VerificationsAsync(string? q)
+    {
+        var query = db.Verifications.Include(v => v.Unit).ThenInclude(u => u.Product).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(v => v.Code.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(v => v.ScannedAt).Take(500).ToList();
     }
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();

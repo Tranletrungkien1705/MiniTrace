@@ -21,7 +21,8 @@ function Layout() {
     <>
       <nav className="nav"><span className="brand">🔗 MiniTrace</span>
         <NavLink to="/" end>Tổng quan</NavLink><NavLink to="/units">Đơn vị truy xuất</NavLink>
-        <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink></nav>
+        <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink>
+        <NavLink to="/verify">Chống hàng giả</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -189,6 +190,49 @@ function Trace() {
   )
 }
 
+const VERIFY_CSS = { 0: 'success', 1: 'warning', 2: 'danger' }
+
+function Verify() {
+  const [code, setCode] = useState(''); const [res, setRes] = useState(null); const [err, setErr] = useState(null)
+  const [rows, setRows] = useState([]); const [q, setQ] = useState('')
+  const load = () => api.verifications(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const doVerify = async () => {
+    try { const r = await api.verify({ code: code.trim() }); setRes(r.data); setErr(null); load() }
+    catch (e) { setErr(e.message); setRes(null) }
+  }
+  return (
+    <>
+      <h1>Chống hàng giả</h1>
+      <div className="card"><div className="row">
+        <Field label="Mã truy xuất trên sản phẩm"><input value={code} onChange={e => setCode(e.target.value)} onKeyDown={e => e.key === 'Enter' && doVerify()} /></Field>
+        <div style={{ flex: 'none', alignSelf: 'flex-end' }}><button className="btn" onClick={doVerify}>Xác thực</button></div>
+      </div></div>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      {res && (
+        <div className="card" style={{ borderLeft: `5px solid var(--${VERIFY_CSS[res.status] || 'line'})` }}>
+          <h2>{res.product} <Badge text={res.statusText} css={VERIFY_CSS[res.status]} /></h2>
+          <p style={{ marginTop: 4 }}>{res.message}</p>
+          <dl className="dl"><dt>Mã</dt><dd style={{ fontFamily: 'monospace' }}>{res.code}</dd>
+            <dt>Xuất xứ</dt><dd>{res.origin || '—'}</dd><dt>Nhà sản xuất</dt><dd>{res.manufacturer || '—'}</dd>
+            <dt>Lô</dt><dd>{res.lotNo}</dd><dt>Số lần quét</dt><dd>{res.verifyCount}</dd></dl>
+        </div>
+      )}
+      <div className="toolbar" style={{ marginTop: 18 }}><h2 style={{ margin: 0, flex: 'none' }}>Lịch sử quét</h2><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button></div>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã</th><th>Sản phẩm</th><th className="right">Lần quét</th><th>Trạng thái</th><th>Vị trí</th><th>IP</th><th>Thời điểm</th></tr></thead>
+          <tbody>{rows.map(v => (
+            <tr key={v.id}><td style={{ fontFamily: 'monospace' }}>{v.code}</td><td>{v.product}</td>
+              <td className="right">{v.verifyCount}</td><td><Badge text={v.statusText} css={v.css} /></td>
+              <td>{v.location || '—'}</td><td className="muted">{v.ipAddress || '—'}</td><td>{fmtDateTime(v.scannedAt)}</td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có lần quét nào.</td></tr>}</tbody></table>
+      </div>
+    </>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -197,6 +241,7 @@ export default function App() {
         <Route path="units" element={<Units />} />
         <Route path="products" element={<Products />} />
         <Route path="trace" element={<Trace />} />
+        <Route path="verify" element={<Verify />} />
       </Route>
     </Routes>
   )

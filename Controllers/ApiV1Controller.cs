@@ -82,6 +82,30 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Chống hàng giả: xác thực khi NTD quét mã =====
+    [HttpPost("verify")]
+    public async Task<IActionResult> Verify([FromBody] VerifyReq r)
+    {
+        if (string.IsNullOrWhiteSpace(r.Code)) return BadRequest(new { error = "Cần mã truy xuất." });
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        var res = await svc.VerifyAsync(r.Code, ip, r.Location, r.Latitude, r.Longitude, r.Phone);
+        if (res == null) return NotFound(new { found = false, error = "Mã truy xuất không tồn tại — sản phẩm có thể không rõ nguồn gốc." });
+        return Ok(new
+        {
+            res.Code, res.Product, res.Origin, res.Manufacturer, res.LotNo,
+            res.VerifyCount, status = (int)res.Status, res.StatusText, res.Message, res.ScannedAt
+        });
+    }
+
+    [HttpGet("verifications")]
+    public async Task<IActionResult> Verifications([FromQuery] string? q)
+        => Ok((await svc.VerificationsAsync(q)).Select(v => new
+        {
+            v.Id, v.Code, product = v.Unit?.Product?.Name, v.VerifyCount,
+            status = (int)v.Status, statusText = Ui.Verify(v.Status).text, css = Ui.Verify(v.Status).css,
+            v.IpAddress, v.Location, v.Phone, v.ScannedAt
+        }));
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -109,3 +133,4 @@ public record ByStageDto(int Stage, string StageText, int Count);
 public class ProductReq { public string Name { get; set; } = ""; public string? Code { get; set; } public string? Origin { get; set; } public string? Manufacturer { get; set; } }
 public class UnitReq { public int ProductId { get; set; } public string? LotNo { get; set; } }
 public class EventReq { public int Type { get; set; } public string? Location { get; set; } public string? Actor { get; set; } public string? Note { get; set; } }
+public class VerifyReq { public string Code { get; set; } = ""; public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public string? Phone { get; set; } }

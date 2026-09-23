@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<TraceUnit> Units => Set<TraceUnit>();
     public DbSet<TraceEvent> Events => Set<TraceEvent>();
+    public DbSet<Verification> Verifications => Set<Verification>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -28,6 +29,12 @@ public class AppDbContext : DbContext
         b.Entity<TraceEvent>(e =>
         {
             e.HasOne(x => x.Unit).WithMany(x => x.Events).HasForeignKey(x => x.UnitId);
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<Verification>(e =>
+        {
+            e.HasOne(x => x.Unit).WithMany().HasForeignKey(x => x.UnitId);
+            e.HasIndex(x => x.Code);
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

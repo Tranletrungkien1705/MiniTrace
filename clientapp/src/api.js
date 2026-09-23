@@ -17,7 +17,9 @@ export const api = {
   unit: (id) => req(`/units/${id}`),
   createUnit: (b) => req('/units', { method: 'POST', body: b }),
   addEvent: (id, b) => req(`/units/${id}/events`, { method: 'POST', body: b }),
-  trace: (code) => req(`/trace/${encodeURIComponent(code)}`)
+  trace: (code) => req(`/trace/${encodeURIComponent(code)}`),
+  verify: (b) => req('/verify', { method: 'POST', body: b }),
+  verifications: (q) => req(`/verifications${q ? `?q=${encodeURIComponent(q)}` : ''}`)
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

@@ -16,4 +16,12 @@ public static class Ui
         EventType.Sold => ("Đã bán", "success", "bi-bag-check"),
         _ => (t.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) Verify(VerifyStatus s) => s switch
+    {
+        VerifyStatus.Genuine => ("Chính hãng", "success", "bi-patch-check-fill"),
+        VerifyStatus.Warning => ("Cảnh báo", "warning", "bi-exclamation-triangle"),
+        VerifyStatus.Suspect => ("Nghi hàng giả", "danger", "bi-shield-exclamation"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

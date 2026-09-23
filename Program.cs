@@ -61,6 +61,20 @@ app.MapGet("/api/trace", async (string code, ITraceService svc) =>
     });
 });
 
+// API chống hàng giả: NTD quét mã → ghi nhận & trả kết quả xác thực (chính hãng/cảnh báo/nghi giả).
+app.MapPost("/api/verify", async (VerifyDto dto, ITraceService svc, HttpContext ctx) =>
+{
+    if (string.IsNullOrWhiteSpace(dto.Code)) return Results.BadRequest(new { error = "Cần mã truy xuất." });
+    var ip = ctx.Connection.RemoteIpAddress?.ToString();
+    var res = await svc.VerifyAsync(dto.Code, ip, dto.Location, dto.Latitude, dto.Longitude, dto.Phone);
+    if (res == null) return Results.NotFound(new { found = false, error = "Mã truy xuất không tồn tại — sản phẩm có thể không rõ nguồn gốc." });
+    return Results.Ok(new
+    {
+        res.Code, res.Product, res.Origin, res.Manufacturer, res.LotNo,
+        res.VerifyCount, status = (int)res.Status, res.StatusText, res.Message, res.ScannedAt
+    });
+});
+
 // API tích hợp: MiniWMS ghi sổ phiếu kho → ghi sự kiện truy xuất cho lô hàng (mã lô = số phiếu).
 app.MapPost("/api/ext/wh-event", async (WhEventDto dto, ITraceService svc, AppDbContext db, HttpContext ctx) =>
 {
@@ -138,3 +152,4 @@ record RegisterOrgDto(string Name);
 record WhEventDto(string Product, string LotNo, int Stage, string? Location, string? Note);
 record ImportTraceProdDto(string? Code, string? Name, string? Origin, string? Manufacturer);
 record ImportTraceUnitDto(string? ProductCode, string? LotNo, string? Dealer);
+record VerifyDto(string Code, string? Location, double? Latitude, double? Longitude, string? Phone);

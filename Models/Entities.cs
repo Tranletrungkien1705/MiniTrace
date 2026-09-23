@@ -61,3 +61,33 @@ public class TraceEvent : IOrgOwned
     public string? Note { get; set; }
     public TraceUnit Unit { get; set; } = null!;
 }
+
+/// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
+public enum VerifyStatus
+{
+    Genuine = 0,   // Chính hãng (quét lần đầu)
+    Warning = 1,   // Cảnh báo: đã quét nhiều lần
+    Suspect = 2    // Nghi hàng giả: quét nhiều nơi / sau khi đã bán
+}
+
+/// <summary>
+/// Lần quét xác thực sản phẩm (tương đương Inv_InventoryVerifiedID của InBrandCloud).
+/// Mỗi lần NTD quét QR → ghi 1 bản ghi: ai/ở đâu/khi nào + đếm số lần quét để phát hiện hàng giả.
+/// </summary>
+public class Verification : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int UnitId { get; set; }
+    public string Code { get; set; } = "";        // mã truy xuất đã quét
+    public int VerifyCount { get; set; } = 1;      // số lần mã này đã bị quét (tính đến lần này)
+    public VerifyStatus Status { get; set; } = VerifyStatus.Genuine;
+    public string? IpAddress { get; set; }         // IP máy khi quét
+    public string? Location { get; set; }          // vị trí (GPS/địa danh)
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string? Phone { get; set; }             // SĐT người quét (nếu nhập)
+    public DateTime ScannedAt { get; set; } = DateTime.Now;
+    public string? Note { get; set; }
+    public TraceUnit Unit { get; set; } = null!;
+}
