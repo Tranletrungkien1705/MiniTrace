@@ -62,6 +62,23 @@ public class TraceEvent : IOrgOwned
     public TraceUnit Unit { get; set; } = null!;
 }
 
+/// <summary>
+/// Danh mục Sự kiện truy xuất trọng yếu (GS1 Critical Tracking Event — CTE).
+/// Tương đương bảng Mst_CTE của InBrandCloud eTEM: định nghĩa "từ điển" các loại sự kiện
+/// mà chuỗi cung ứng dùng để ghi hành trình (Sản xuất, Kiểm định, Vận chuyển…).
+/// </summary>
+public class Cte : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // CTECode — mã sự kiện (vd: PRODUCTION_IN)
+    public string Description { get; set; } = "";  // CTEDesc — diễn giải
+    public string? NetworkType { get; set; }        // TplNWType — loại mạng/đối tác áp dụng
+    public string? ApiLink { get; set; }            // APIsLink — API đích khi đẩy sự kiện
+    public bool Active { get; set; } = true;        // FlagActive
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

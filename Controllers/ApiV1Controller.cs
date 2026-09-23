@@ -106,6 +106,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
             v.IpAddress, v.Location, v.Phone, v.ScannedAt
         }));
 
+    // ===== Danh mục sự kiện truy xuất trọng yếu (GS1 CTE — Mst_CTE của InBrandCloud eTEM) =====
+    [HttpGet("ctes")]
+    public async Task<IActionResult> Ctes([FromQuery] string? q)
+        => Ok((await svc.CtesAsync(q)).Select(c => new { c.Id, c.Code, c.Description, c.NetworkType, c.ApiLink, c.Active, c.CreatedAt }));
+
+    [HttpPost("ctes")]
+    public async Task<IActionResult> SaveCte([FromBody] CteReq r)
+    {
+        var (ok, msg) = await svc.SaveCteAsync(r.Id, r.Code ?? "", r.Description ?? "", r.NetworkType, r.ApiLink, r.Active);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("ctes/{id:int}")]
+    public async Task<IActionResult> DeleteCte(int id)
+    {
+        var (ok, msg) = await svc.DeleteCteAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -134,3 +153,5 @@ public class ProductReq { public string Name { get; set; } = ""; public string? 
 public class UnitReq { public int ProductId { get; set; } public string? LotNo { get; set; } }
 public class EventReq { public int Type { get; set; } public string? Location { get; set; } public string? Actor { get; set; } public string? Note { get; set; } }
 public class VerifyReq { public string Code { get; set; } = ""; public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public string? Phone { get; set; } }
+public class CteReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? NetworkType { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
+

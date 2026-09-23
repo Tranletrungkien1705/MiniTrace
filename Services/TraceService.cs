@@ -20,6 +20,10 @@ public interface ITraceService
     Task<(int added, int updated, int total)> ImportFromPimAsync();   // đồng bộ danh mục từ MiniPIM
     Task<VerifyResult?> VerifyAsync(string code, string? ip, string? location, double? lat, double? lng, string? phone);   // xác thực chống hàng giả
     Task<List<Verification>> VerificationsAsync(string? q);
+    // Danh mục sự kiện truy xuất trọng yếu (GS1 CTE — Mst_CTE của InBrandCloud eTEM)
+    Task<List<Cte>> CtesAsync(string? q);
+    Task<(bool ok, string msg)> SaveCteAsync(int id, string code, string description, string? networkType, string? apiLink, bool active);
+    Task<(bool ok, string msg)> DeleteCteAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -152,6 +156,50 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         if (!string.IsNullOrWhiteSpace(q)) query = query.Where(v => v.Code.Contains(q));
         var list = await query.ToListAsync();
         return list.OrderByDescending(v => v.ScannedAt).Take(500).ToList();
+    }
+
+    // ===== Danh mục sự kiện truy xuất trọng yếu (GS1 CTE — Mst_CTE của InBrandCloud eTEM) =====
+    // Định nghĩa "từ điển" các loại sự kiện chuỗi cung ứng dùng để ghi hành trình truy xuất.
+    public async Task<List<Cte>> CtesAsync(string? q)
+    {
+        var query = db.Ctes.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(c => c.Code.Contains(q) || c.Description.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(c => c.Code).ToList();
+    }
+
+    public async Task<(bool ok, string msg)> SaveCteAsync(int id, string code, string description, string? networkType, string? apiLink, bool active)
+    {
+        code = (code ?? "").Trim();
+        description = (description ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã sự kiện (CTECode).");
+        if (description.Length == 0) return (false, "Cần diễn giải sự kiện (CTEDesc).");
+        // Mã sự kiện phải duy nhất trong tenant.
+        if (await db.Ctes.AnyAsync(c => c.Code == code && c.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        Cte cte;
+        if (id > 0)
+        {
+            cte = await db.Ctes.FirstOrDefaultAsync(c => c.Id == id) ?? null!;
+            if (cte == null) return (false, "Không tìm thấy sự kiện.");
+        }
+        else { cte = new Cte(); db.Ctes.Add(cte); }
+
+        cte.Code = code; cte.Description = description;
+        cte.NetworkType = string.IsNullOrWhiteSpace(networkType) ? null : networkType.Trim();
+        cte.ApiLink = string.IsNullOrWhiteSpace(apiLink) ? null : apiLink.Trim();
+        cte.Active = active;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật sự kiện." : "Đã thêm sự kiện.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteCteAsync(int id)
+    {
+        var cte = await db.Ctes.FirstOrDefaultAsync(c => c.Id == id);
+        if (cte == null) return (false, "Không tìm thấy sự kiện.");
+        db.Ctes.Remove(cte);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa sự kiện.");
     }
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();

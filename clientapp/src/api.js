@@ -19,7 +19,10 @@ export const api = {
   addEvent: (id, b) => req(`/units/${id}/events`, { method: 'POST', body: b }),
   trace: (code) => req(`/trace/${encodeURIComponent(code)}`),
   verify: (b) => req('/verify', { method: 'POST', body: b }),
-  verifications: (q) => req(`/verifications${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+  verifications: (q) => req(`/verifications${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  ctes: (q) => req(`/ctes${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveCte: (b) => req('/ctes', { method: 'POST', body: b }),
+  deleteCte: (id) => req(`/ctes/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

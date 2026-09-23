@@ -42,13 +42,28 @@ public static class Seeder
                     ScannedAt = DateTime.Now.AddDays(-2), Note = "Quét lại ở địa điểm khác — nghi hàng giả" });
             await db.SaveChangesAsync();
         }
+
+        // Danh mục sự kiện truy xuất trọng yếu (GS1 CTE) — "từ điển" 8 giai đoạn chuỗi cung ứng.
+        if (!await db.Ctes.AnyAsync())
+        {
+            db.Ctes.AddRange(
+                new Cte { Code = "PRODUCTION_IN", Description = "Nhập kho thành phẩm (sản xuất)", NetworkType = "Manufacturer", Active = true },
+                new Cte { Code = "QUALITY_CHECK", Description = "Kiểm định chất lượng", NetworkType = "Manufacturer", Active = true },
+                new Cte { Code = "PACKING", Description = "Đóng gói", NetworkType = "Manufacturer", Active = true },
+                new Cte { Code = "WAREHOUSE_IN", Description = "Nhập kho", NetworkType = "Warehouse", Active = true },
+                new Cte { Code = "SALE_TO_DISTRIBUTOR", Description = "Xuất kho → Đại lý cấp 1", NetworkType = "Distributor", Active = true },
+                new Cte { Code = "DISTRIBUTOR_IN", Description = "Đại lý nhận hàng", NetworkType = "Distributor", Active = true },
+                new Cte { Code = "RETAIL_SALE", Description = "Bày bán tại điểm bán lẻ", NetworkType = "Dealer", Active = true },
+                new Cte { Code = "CONSUMER_SCAN", Description = "Bán cho người tiêu dùng / quét xác thực", NetworkType = "Consumer", Active = true });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task MigratePostgresAsync(AppDbContext db)
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

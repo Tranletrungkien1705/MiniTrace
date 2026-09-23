@@ -22,7 +22,7 @@ function Layout() {
       <nav className="nav"><span className="brand">🔗 MiniTrace</span>
         <NavLink to="/" end>Tổng quan</NavLink><NavLink to="/units">Đơn vị truy xuất</NavLink>
         <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink>
-        <NavLink to="/verify">Chống hàng giả</NavLink></nav>
+        <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -233,6 +233,63 @@ function Verify() {
   )
 }
 
+const CTE_NET = ['Manufacturer', 'Warehouse', 'Distributor', 'Dealer', 'Consumer']
+
+function Ctes() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.ctes(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (c) => {
+    if (!window.confirm(`Xóa sự kiện ${c.code}?`)) return
+    try { const r = await api.deleteCte(c.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Sự kiện truy xuất (CTE)</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / diễn giải…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, code: '', description: '', networkType: '', apiLink: '', active: true })}>+ Thêm sự kiện</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục sự kiện trọng yếu (GS1 Critical Tracking Event) — "từ điển" các loại sự kiện dùng để ghi hành trình truy xuất.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (CTECode)</th><th>Diễn giải</th><th>Loại mạng</th><th>API đích</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(c => (
+            <tr key={c.id}><td style={{ fontFamily: 'monospace' }}>{c.code}</td><td>{c.description}</td>
+              <td>{c.networkType || '—'}</td><td className="muted">{c.apiLink || '—'}</td>
+              <td><Badge text={c.active ? 'Đang dùng' : 'Ngưng'} css={c.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(c)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(c)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>Chưa có sự kiện.</td></tr>}</tbody></table>
+      </div>
+      {edit && <CteForm cte={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function CteForm({ cte, onClose, onSaved }) {
+  const [f, setF] = useState({ ...cte }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveCte({ id: f.id, code: f.code, description: f.description, networkType: f.networkType, apiLink: f.apiLink, active: f.active }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa sự kiện ${f.code}` : 'Thêm sự kiện truy xuất'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã sự kiện (CTECode) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: PRODUCTION_IN" /></Field>
+        <Field label="Loại mạng"><select value={f.networkType || ''} onChange={e => up('networkType', e.target.value)}>
+          <option value="">—</option>{CTE_NET.map(n => <option key={n} value={n}>{n}</option>)}</select></Field></div>
+      <Field label="Diễn giải *"><input value={f.description} onChange={e => up('description', e.target.value)} /></Field>
+      <Field label="API đích (APIsLink)"><input value={f.apiLink || ''} onChange={e => up('apiLink', e.target.value)} placeholder="https://…" /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang sử dụng</label>
+      <div style={{ marginTop: 16 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -242,6 +299,7 @@ export default function App() {
         <Route path="products" element={<Products />} />
         <Route path="trace" element={<Trace />} />
         <Route path="verify" element={<Verify />} />
+        <Route path="ctes" element={<Ctes />} />
       </Route>
     </Routes>
   )
