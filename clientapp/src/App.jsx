@@ -35,7 +35,8 @@ function Layout() {
         <NavLink to="/que-syncs">Hàng đợi đồng bộ</NavLink>
         <NavLink to="/master-datas">Dữ liệu gốc</NavLink>
         <NavLink to="/network-orgs">Tổ chức mạng</NavLink>
-        <NavLink to="/secrets">Số bí mật</NavLink></nav>
+        <NavLink to="/secrets">Số bí mật</NavLink>
+        <NavLink to="/stamp-pairs">Cặp tem</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1416,6 +1417,63 @@ function SecretForm({ secret, onClose, onSaved }) {
   )
 }
 
+function StampPairs() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.stampPairs(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (p) => {
+    if (!window.confirm(`Xóa cặp tem ${p.idNo} ↔ ${p.boxNo}?`)) return
+    try { const r = await api.deleteStampPair(p.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Ánh xạ cặp tem</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm IDNo / BoxNo…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({})}>+ Ghép cặp tem</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Ánh xạ cặp tem (GS1 Map_StampPair) — ghép 1 tem sản phẩm (IDNo) với 1 tem hộp (BoxNo) thành một cặp để đẩy lên eTEM/ELTS. Mỗi tem sản phẩm và mỗi tem hộp chỉ được ghép một lần.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Tem sản phẩm (IDNo)</th><th>Tem hộp (BoxNo)</th><th>PIN</th><th>Môi trường</th><th>Trạng thái</th><th>Ngày tạo</th><th></th></tr></thead>
+          <tbody>{rows.map(p => (
+            <tr key={p.id}><td style={{ fontFamily: 'monospace' }}>{p.idNo}</td>
+              <td style={{ fontFamily: 'monospace' }}>{p.boxNo}</td>
+              <td style={{ fontFamily: 'monospace' }}>{p.pin || '—'}</td>
+              <td>{p.networkId || '—'}</td>
+              <td><Badge text={p.active ? 'Hiệu lực' : 'Ngưng'} css={p.active ? 'success' : 'secondary'} /></td>
+              <td>{fmtDate(p.createdAt)}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(p)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(p)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có cặp tem.</td></tr>}</tbody></table>
+      </div>
+      {edit && <StampPairForm row={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function StampPairForm({ row, onClose, onSaved }) {
+  const [f, setF] = useState({ id: row.id || 0, idNo: row.idNo || '', boxNo: row.boxNo || '', pin: row.pin || '', networkId: row.networkId || '', remark: row.remark || '' })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveStampPair(f); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? 'Sửa cặp tem' : 'Ghép cặp tem'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Tem sản phẩm (IDNo) *"><input value={f.idNo} onChange={e => up('idNo', e.target.value)} placeholder="vd: P000001" /></Field>
+        <Field label="Tem hộp (BoxNo) *"><input value={f.boxNo} onChange={e => up('boxNo', e.target.value)} placeholder="vd: B2601010001" /></Field></div>
+      <div className="row"><Field label="PIN (mã bí mật)"><input value={f.pin} onChange={e => up('pin', e.target.value)} placeholder="vd: PIN00001" /></Field>
+        <Field label="Môi trường (NetworkID)"><input value={f.networkId} onChange={e => up('networkId', e.target.value)} placeholder="vd: Manufacturer" /></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: IDNo phải có trong kho số tem; BoxNo phải có trong kho số hộp; mỗi tem chỉ được ghép một lần.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Ghép cặp'}</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1441,6 +1499,7 @@ export default function App() {
         <Route path="master-datas" element={<MasterDatas />} />
         <Route path="network-orgs" element={<NetworkOrgs />} />
         <Route path="secrets" element={<Secrets />} />
+        <Route path="stamp-pairs" element={<StampPairs />} />
       </Route>
     </Routes>
   )

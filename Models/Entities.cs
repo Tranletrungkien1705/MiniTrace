@@ -595,6 +595,28 @@ public class Secret : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Ánh xạ cặp tem (GS1 Stamp Pair — Map_StampPair của InBrandCloud eTEM).
+/// Ghép 1 tem sản phẩm (IDNo) với 1 tem hộp (BoxNo) thành một "cặp tem" để đẩy lên
+/// máy chủ eTEM/ELTS (Index etem_tem). Mỗi IDNo và mỗi BoxNo chỉ được xuất hiện trong
+/// MỘT cặp (1-1) — hỗ trợ cơ chế 2 cuộn tem trong/ngoài khi dán tem lên sản phẩm.
+/// PIN là mã bí mật in kèm tem sản phẩm (đối chiếu chống giả).
+/// </summary>
+public class StampPair : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string IDNo { get; set; } = "";          // IDNo — số định danh tem sản phẩm (duy nhất trong tenant)
+    public string BoxNo { get; set; } = "";          // BoxNo — mã tem hộp (duy nhất trong tenant)
+    public string? NetworkId { get; set; }             // NetworkID — môi trường/loại mạng đồng bộ
+    public string? PIN { get; set; }                   // PIN — mã bí mật in kèm tem sản phẩm
+    public string? QR_ID { get; set; }                 // QR_ID — nội dung QR gốc của tem sản phẩm
+    public string? QR_BoxNo { get; set; }              // QR_BoxNo — nội dung QR gốc của tem hộp
+    public string? Remark { get; set; }                // Remark — ghi chú
+    public bool Active { get; set; } = true;           // FlagActive — đang hiệu lực
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

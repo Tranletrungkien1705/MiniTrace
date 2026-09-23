@@ -81,7 +81,10 @@ export const api = {
   secrets: (q, used) => req(`/secrets?${used !== undefined && used !== null ? `used=${used}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`),
   saveSecret: (b) => req('/secrets', { method: 'POST', body: b }),
   markSecretUsed: (id) => req(`/secrets/${id}/use`, { method: 'POST' }),
-  deleteSecret: (id) => req(`/secrets/${id}`, { method: 'DELETE' })
+  deleteSecret: (id) => req(`/secrets/${id}`, { method: 'DELETE' }),
+  stampPairs: (q) => req(`/stamp-pairs${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveStampPair: (b) => req('/stamp-pairs', { method: 'POST', body: b }),
+  deleteStampPair: (id) => req(`/stamp-pairs/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

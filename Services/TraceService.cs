@@ -100,6 +100,10 @@ public interface ITraceService
     Task<(bool ok, string msg)> SaveSecretAsync(int id, string serialNo, string secretNo, string? qrSerialNo, string? networkId, string? mst, string? orgCode, string? genTimesNo, bool flagMap, string? remark);
     Task<(bool ok, string msg)> DeleteSecretAsync(int id);
     Task<(bool ok, string msg)> MarkSecretUsedAsync(int id);
+    // Ánh xạ cặp tem (GS1 Stamp Pair — Map_StampPair của InBrandCloud eTEM)
+    Task<List<StampPair>> StampPairsAsync(string? q);
+    Task<(bool ok, string msg)> SaveStampPairAsync(int id, string idNo, string boxNo, string? pin, string? networkId, string? remark);
+    Task<(bool ok, string msg)> DeleteStampPairAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1424,5 +1428,62 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         sec.FlagUsed = true;
         await db.SaveChangesAsync();
         return (true, $"Đã đánh dấu số bí mật '{sec.SecretNo}' là đã dùng.");
+    }
+
+    // ===== Ánh xạ cặp tem (GS1 Stamp Pair — Map_StampPair của InBrandCloud eTEM) =====
+    // Ghép 1 tem sản phẩm (IDNo) với 1 tem hộp (BoxNo) thành "cặp tem" để đẩy lên eTEM/ELTS.
+    public async Task<List<StampPair>> StampPairsAsync(string? q)
+    {
+        var query = db.StampPairs.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(p => p.IDNo.Contains(q) || p.BoxNo.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(p => p.CreatedAt).Take(500).ToList();
+    }
+
+    // Lưu cặp tem. Áp quy tắc nghiệp vụ InBrandCloud (Map_StampPair_AddX):
+    //  (1) Cần IDNo (tem sản phẩm) + BoxNo (tem hộp).
+    //  (2) IDNo phải tồn tại trong kho số tem (Inv_InventoryGenID).
+    //  (3) BoxNo phải tồn tại trong kho số hộp (Inv_InventoryGenBox).
+    //  (4) Mỗi IDNo chỉ được ghép 1 lần — chống ghép trùng tem sản phẩm.
+    //  (5) Mỗi BoxNo chỉ được ghép 1 lần — chống ghép trùng tem hộp.
+    public async Task<(bool ok, string msg)> SaveStampPairAsync(int id, string idNo, string boxNo, string? pin, string? networkId, string? remark)
+    {
+        idNo = (idNo ?? "").Trim().ToUpperInvariant();
+        boxNo = (boxNo ?? "").Trim().ToUpperInvariant();
+        if (idNo.Length == 0) return (false, "Cần số định danh tem sản phẩm (IDNo).");
+        if (boxNo.Length == 0) return (false, "Cần mã tem hộp (BoxNo).");
+        // (2) IDNo phải tồn tại trong kho số tem.
+        if (!await db.Stamps.AnyAsync(s => s.IDNo == idNo)) return (false, $"Tem sản phẩm '{idNo}' không tồn tại trong kho số tem.");
+        // (3) BoxNo phải tồn tại trong kho số hộp.
+        if (!await db.Boxes.AnyAsync(b => b.BoxNo == boxNo)) return (false, $"Tem hộp '{boxNo}' không tồn tại trong kho số hộp.");
+        // (4) Mỗi IDNo chỉ được ghép 1 lần.
+        if (await db.StampPairs.AnyAsync(p => p.IDNo == idNo && p.Id != id)) return (false, $"Tem sản phẩm '{idNo}' đã được ghép cặp.");
+        // (5) Mỗi BoxNo chỉ được ghép 1 lần.
+        if (await db.StampPairs.AnyAsync(p => p.BoxNo == boxNo && p.Id != id)) return (false, $"Tem hộp '{boxNo}' đã được ghép cặp.");
+
+        StampPair pair;
+        if (id > 0)
+        {
+            pair = await db.StampPairs.FirstOrDefaultAsync(p => p.Id == id) ?? null!;
+            if (pair == null) return (false, "Không tìm thấy cặp tem.");
+        }
+        else { pair = new StampPair(); db.StampPairs.Add(pair); }
+
+        pair.IDNo = idNo; pair.BoxNo = boxNo;
+        pair.PIN = string.IsNullOrWhiteSpace(pin) ? null : pin.Trim().ToUpperInvariant();
+        pair.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        pair.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        pair.Active = true;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật cặp tem." : "Đã ghép cặp tem.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteStampPairAsync(int id)
+    {
+        var pair = await db.StampPairs.FirstOrDefaultAsync(p => p.Id == id);
+        if (pair == null) return (false, "Không tìm thấy cặp tem.");
+        db.StampPairs.Remove(pair);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa cặp tem.");
     }
 }

@@ -326,6 +326,17 @@ public static class Seeder
                     Mst = "MST-NXSX-ST", OrgCode = "ORG-NXSX-ST", GenTimesNo = "GT2601010001", FlagMap = false, FlagUsed = false, Remark = "Chưa ghép serial" });
             await db.SaveChangesAsync();
         }
+
+        // Ánh xạ cặp tem (Map_StampPair của InBrandCloud eTEM) — ghép tem sản phẩm (IDNo) với tem hộp (BoxNo).
+        if (!await db.StampPairs.AnyAsync())
+        {
+            db.StampPairs.AddRange(
+                new StampPair { IDNo = "P000001", BoxNo = "B2601010001", NetworkId = "Manufacturer", PIN = "PIN00001",
+                    QR_ID = "P000001", QR_BoxNo = "B2601010001", Remark = "Cặp tem mẫu 1 — tem SP P000001 ↔ tem hộp B2601010001" },
+                new StampPair { IDNo = "P000002", BoxNo = "B2601010002", NetworkId = "Manufacturer", PIN = "PIN00002",
+                    QR_ID = "P000002", QR_BoxNo = "B2601010002", Remark = "Cặp tem mẫu 2" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -339,7 +350,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

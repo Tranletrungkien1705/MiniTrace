@@ -579,6 +579,28 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Ánh xạ cặp tem (GS1 Stamp Pair — Map_StampPair của InBrandCloud eTEM) =====
+    [HttpGet("stamp-pairs")]
+    public async Task<IActionResult> StampPairs([FromQuery] string? q)
+        => Ok((await svc.StampPairsAsync(q)).Select(p => new
+        {
+            p.Id, p.IDNo, p.BoxNo, p.NetworkId, p.PIN, p.QR_ID, p.QR_BoxNo, p.Remark, p.Active, p.CreatedAt
+        }));
+
+    [HttpPost("stamp-pairs")]
+    public async Task<IActionResult> SaveStampPair([FromBody] StampPairReq r)
+    {
+        var (ok, msg) = await svc.SaveStampPairAsync(r.Id, r.IDNo ?? "", r.BoxNo ?? "", r.PIN, r.NetworkId, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("stamp-pairs/{id:int}")]
+    public async Task<IActionResult> DeleteStampPair(int id)
+    {
+        var (ok, msg) = await svc.DeleteStampPairAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -632,4 +654,5 @@ public class QueSyncMarkReq { public int Status { get; set; } public string? Err
 public class MasterDataReq { public int Id { get; set; } public string? Code { get; set; } public string? NetworkId { get; set; } public string? TableName { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
 public class NetworkOrgReq { public int Id { get; set; } public string? Mst { get; set; } public string? FullName { get; set; } public string? NetworkType { get; set; } public string? OrgCode { get; set; } public string? Address { get; set; } public string? Mobile { get; set; } public string? ContactName { get; set; } public string? ContactEmail { get; set; } public string? Gln { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
 public class SecretReq { public int Id { get; set; } public string? SerialNo { get; set; } public string? SecretNo { get; set; } public string? QR_SerialNo { get; set; } public string? NetworkId { get; set; } public string? Mst { get; set; } public string? OrgCode { get; set; } public string? GenTimesNo { get; set; } public bool FlagMap { get; set; } public string? Remark { get; set; } }
+public class StampPairReq { public int Id { get; set; } public string? IDNo { get; set; } public string? BoxNo { get; set; } public string? PIN { get; set; } public string? NetworkId { get; set; } public string? Remark { get; set; } }
 

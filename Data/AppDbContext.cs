@@ -37,6 +37,7 @@ public class AppDbContext : DbContext
     public DbSet<MasterData> MasterDatas => Set<MasterData>();
     public DbSet<NetworkOrg> NetworkOrgs => Set<NetworkOrg>();
     public DbSet<Secret> Secrets => Set<Secret>();
+    public DbSet<StampPair> StampPairs => Set<StampPair>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -186,6 +187,12 @@ public class AppDbContext : DbContext
         b.Entity<Secret>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.SecretNo }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<StampPair>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();   // mỗi tem sản phẩm chỉ nằm trong 1 cặp
+            e.HasIndex(x => new { x.OrgId, x.BoxNo }).IsUnique();  // mỗi tem hộp chỉ nằm trong 1 cặp
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }
