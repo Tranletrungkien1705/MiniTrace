@@ -25,6 +25,7 @@ function Layout() {
         <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink>
         <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/data-types">Kiểu dữ liệu</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink>
         <NavLink to="/farms">Nông trại</NavLink>
+        <NavLink to="/market-areas">Vùng thị trường</NavLink>
         <NavLink to="/org-glns">Tổ chức ↔ Địa điểm</NavLink>
         <NavLink to="/templates">Mẫu loại tổ chức</NavLink>
         <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink>
@@ -1417,6 +1418,61 @@ function SecretForm({ secret, onClose, onSaved }) {
   )
 }
 
+function MarketAreas() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.marketAreas(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (m) => {
+    if (!window.confirm(`Xóa vùng thị trường ${m.code}?`)) return
+    try { const r = await api.deleteMarketArea(m.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Vùng thị trường</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / tên…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({})}>+ Thêm vùng</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục vùng thị trường (GS1 Mst_MarketArea) — "từ điển" các vùng phân phối (miền/khu vực) dùng để gắn vào hồ sơ phân phối truy xuất.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã</th><th>Tên vùng</th><th>Loại</th><th>Diễn giải</th><th>Trạng thái</th><th>Ngày tạo</th><th></th></tr></thead>
+          <tbody>{rows.map(m => (
+            <tr key={m.id}><td style={{ fontFamily: 'monospace' }}>{m.code}</td><td>{m.name}</td>
+              <td>{m.areaType || '—'}</td><td>{m.description || '—'}</td>
+              <td><Badge text={m.active ? 'Hoạt động' : 'Ngưng'} css={m.active ? 'success' : 'secondary'} /></td>
+              <td>{fmtDate(m.createdAt)}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(m)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(m)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có vùng thị trường.</td></tr>}</tbody></table>
+      </div>
+      {edit && <MarketAreaForm row={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function MarketAreaForm({ row, onClose, onSaved }) {
+  const [f, setF] = useState({ id: row.id || 0, code: row.code || '', name: row.name || '', areaType: row.areaType || '', description: row.description || '', active: row.active !== false })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveMarketArea(f); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? 'Sửa vùng thị trường' : 'Thêm vùng thị trường'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã vùng (MarketAreaCode) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: MA-MIENB" /></Field>
+        <Field label="Tên vùng (MarketAreaName) *"><input value={f.name} onChange={e => up('name', e.target.value)} placeholder="vd: Miền Bắc" /></Field></div>
+      <div className="row"><Field label="Loại vùng (MarketAreaType)"><input value={f.areaType} onChange={e => up('areaType', e.target.value)} placeholder="vd: Region / City" /></Field>
+        <Field label="Trạng thái"><select value={f.active ? '1' : '0'} onChange={e => up('active', e.target.value === '1')}><option value="1">Hoạt động</option><option value="0">Ngưng</option></select></Field></div>
+      <Field label="Diễn giải (MarketAreaDesc)"><input value={f.description} onChange={e => up('description', e.target.value)} /></Field>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã + tên vùng thị trường; mã vùng duy nhất trong tenant.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 function StampPairs() {
   const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
   const load = () => api.stampPairs(q).then(r => setRows(r.data))
@@ -1488,6 +1544,7 @@ export default function App() {
         <Route path="data-types" element={<DataTypes />} />
         <Route path="glns" element={<Glns />} />
         <Route path="farms" element={<Farms />} />
+        <Route path="market-areas" element={<MarketAreas />} />
         <Route path="org-glns" element={<OrgGlns />} />
         <Route path="templates" element={<Templates />} />
         <Route path="tpl-view-events" element={<TplViewEvents />} />

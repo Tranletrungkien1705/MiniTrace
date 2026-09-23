@@ -43,6 +43,10 @@ public interface ITraceService
     Task<List<Farm>> FarmsAsync(string? q);
     Task<(bool ok, string msg)> SaveFarmAsync(int id, string code, string name, string? networkType, bool active);
     Task<(bool ok, string msg)> DeleteFarmAsync(int id);
+    // Danh mục vùng thị trường (GS1 Market Area — Mst_MarketArea của InBrandCloud eTEM)
+    Task<List<MarketArea>> MarketAreasAsync(string? q);
+    Task<(bool ok, string msg)> SaveMarketAreaAsync(int id, string code, string name, string? areaType, string? description, bool active);
+    Task<(bool ok, string msg)> DeleteMarketAreaAsync(int id);
     // Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM)
     Task<List<OrgGlnView>> OrgGlnsAsync(string? q);
     Task<(bool ok, string msg)> SaveOrgGlnAsync(int id, string orgCode, string glnCode, string? remark);
@@ -535,6 +539,54 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Farms.Remove(farm);
         await db.SaveChangesAsync();
         return (true, "Đã xóa nông trại.");
+    }
+
+    // ===== Danh mục vùng thị trường (GS1 Market Area — Mst_MarketArea của InBrandCloud eTEM) =====
+    // "Từ điển" các vùng thị trường (miền/khu vực phân phối) dùng để gắn vào hồ sơ phân phối.
+    public async Task<List<MarketArea>> MarketAreasAsync(string? q)
+    {
+        var query = db.MarketAreas.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(m => m.Code.Contains(q) || m.Name.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(m => m.Code).ToList();
+    }
+
+    // Lưu vùng thị trường. Áp quy tắc InBrandCloud (Mst_MarketArea_SaveX + Mst_MarketArea_CheckDB):
+    //  (1) Cần mã vùng thị trường (MarketAreaCode) — tương đương Mst_MarketArea_Save_InvalidMarketAreaCode.
+    //  (2) Cần tên vùng thị trường (MarketAreaName).
+    //  (3) Mã vùng thị trường duy nhất trong tenant — tương đương Mst_MarketArea_CheckDB (theo OrgID + MarketAreaCode).
+    public async Task<(bool ok, string msg)> SaveMarketAreaAsync(int id, string code, string name, string? areaType, string? description, bool active)
+    {
+        code = (code ?? "").Trim();
+        name = (name ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã vùng thị trường (MarketAreaCode).");
+        if (name.Length == 0) return (false, "Cần tên vùng thị trường (MarketAreaName).");
+        // Mã vùng thị trường phải duy nhất trong tenant.
+        if (await db.MarketAreas.AnyAsync(m => m.Code == code && m.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        MarketArea ma;
+        if (id > 0)
+        {
+            ma = await db.MarketAreas.FirstOrDefaultAsync(m => m.Id == id) ?? null!;
+            if (ma == null) return (false, "Không tìm thấy vùng thị trường.");
+        }
+        else { ma = new MarketArea(); db.MarketAreas.Add(ma); }
+
+        ma.Code = code; ma.Name = name;
+        ma.AreaType = string.IsNullOrWhiteSpace(areaType) ? null : areaType.Trim();
+        ma.Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        ma.Active = active;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật vùng thị trường." : "Đã thêm vùng thị trường.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteMarketAreaAsync(int id)
+    {
+        var ma = await db.MarketAreas.FirstOrDefaultAsync(m => m.Id == id);
+        if (ma == null) return (false, "Không tìm thấy vùng thị trường.");
+        db.MarketAreas.Remove(ma);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa vùng thị trường.");
     }
 
     // ===== Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM) =====

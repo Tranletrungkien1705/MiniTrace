@@ -128,6 +128,18 @@ public static class Seeder
             await db.SaveChangesAsync();
         }
 
+        // Danh mục vùng thị trường (GS1 Market Area — Mst_MarketArea của InBrandCloud eTEM) — "từ điển" vùng phân phối.
+        if (!await db.MarketAreas.AnyAsync())
+        {
+            db.MarketAreas.AddRange(
+                new MarketArea { Code = "MA-MIENB", Name = "Miền Bắc", AreaType = "Region", Description = "Vùng thị trường miền Bắc", Active = true },
+                new MarketArea { Code = "MA-MIENT", Name = "Miền Trung", AreaType = "Region", Description = "Vùng thị trường miền Trung", Active = true },
+                new MarketArea { Code = "MA-MIENN", Name = "Miền Nam", AreaType = "Region", Description = "Vùng thị trường miền Nam", Active = true },
+                new MarketArea { Code = "MA-TPHCM", Name = "TP. Hồ Chí Minh", AreaType = "City", Description = "Vùng thị trường trọng điểm TP.HCM", Active = true },
+                new MarketArea { Code = "MA-MIENDBSCL", Name = "Đồng bằng sông Cửu Long", AreaType = "Region", Description = "Vùng nguyên liệu + tiêu thụ ĐBSCL", Active = false });
+            await db.SaveChangesAsync();
+        }
+
         // Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM) — tổ chức hoạt động tại địa điểm nào.
         if (!await db.OrgGlns.AnyAsync())
         {
@@ -350,7 +362,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

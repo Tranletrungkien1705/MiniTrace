@@ -187,6 +187,25 @@ public class Farm : IOrgOwned
 }
 
 /// <summary>
+/// Danh mục Vùng thị trường (GS1 Market Area — Mst_MarketArea của InBrandCloud eTEM).
+/// Tương đương bảng Mst_MarketArea: định danh "từ điển" các vùng thị trường
+/// (miền/khu vực phân phối) mà chuỗi truy xuất dùng để gắn vào sự kiện/hồ sơ phân phối.
+/// Khi đồng bộ, hệ thống join sang Mst_MarketArea để làm giàu tên vùng thị trường
+/// (MarketAreaName) cho bản ghi phân phối (doc 09 §2.1/§3).
+/// </summary>
+public class MarketArea : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // MarketAreaCode — mã vùng thị trường (duy nhất trong tenant)
+    public string Name { get; set; } = "";        // MarketAreaName — tên vùng thị trường
+    public string? AreaType { get; set; }           // MarketAreaType — loại vùng (miền/khu vực)
+    public string? Description { get; set; }        // MarketAreaDesc — diễn giải vùng thị trường
+    public bool Active { get; set; } = true;        // FlagActive — đang hoạt động
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
+/// <summary>
 /// Trạng thái mẫu loại tổ chức (TplNWTStatus của InBrandCloud eTEM).
 /// PENDING = chờ duyệt (mới tạo/sửa), APPROVE = đã duyệt, CANCEL = đã hủy.
 /// </summary>

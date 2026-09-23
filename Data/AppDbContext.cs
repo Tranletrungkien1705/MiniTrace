@@ -20,6 +20,7 @@ public class AppDbContext : DbContext
     public DbSet<Gln> Glns => Set<Gln>();
     public DbSet<OrgGln> OrgGlns => Set<OrgGln>();
     public DbSet<Farm> Farms => Set<Farm>();
+    public DbSet<MarketArea> MarketAreas => Set<MarketArea>();
     public DbSet<TemplateNWType> Templates => Set<TemplateNWType>();
     public DbSet<TplNwtCte> TplNwtCtes => Set<TplNwtCte>();
     public DbSet<TplNwtKde> TplNwtKdes => Set<TplNwtKde>();
@@ -88,6 +89,11 @@ public class AppDbContext : DbContext
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
         b.Entity<Farm>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<MarketArea>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);

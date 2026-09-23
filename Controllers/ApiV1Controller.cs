@@ -214,6 +214,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục vùng thị trường (GS1 Market Area — Mst_MarketArea của InBrandCloud eTEM) =====
+    [HttpGet("market-areas")]
+    public async Task<IActionResult> MarketAreas([FromQuery] string? q)
+        => Ok((await svc.MarketAreasAsync(q)).Select(m => new { m.Id, m.Code, m.Name, m.AreaType, m.Description, m.Active, m.CreatedAt }));
+
+    [HttpPost("market-areas")]
+    public async Task<IActionResult> SaveMarketArea([FromBody] MarketAreaReq r)
+    {
+        var (ok, msg) = await svc.SaveMarketAreaAsync(r.Id, r.Code ?? "", r.Name ?? "", r.AreaType, r.Description, r.Active);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("market-areas/{id:int}")]
+    public async Task<IActionResult> DeleteMarketArea(int id)
+    {
+        var (ok, msg) = await svc.DeleteMarketAreaAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // ===== Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM) =====
     [HttpGet("org-glns")]
     public async Task<IActionResult> OrgGlns([FromQuery] string? q)
@@ -636,6 +655,7 @@ public class CteKdeReq { public string? CteCode { get; set; } public List<CteKde
 public class CteKdeItemReq { public string? KdeCode { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 public class GlnReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? GpsLat { get; set; } public string? GpsLong { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; }
 public class FarmReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? NetworkType { get; set; } public bool Active { get; set; } = true; }
+public class MarketAreaReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? AreaType { get; set; } public string? Description { get; set; } public bool Active { get; set; } = true; }
 public class OrgGlnReq { public int Id { get; set; } public string? OrgCode { get; set; } public string? GlnCode { get; set; } public string? Remark { get; set; } }
 public class TemplateReq { public int Id { get; set; } public string? TplNWType { get; set; } public string? Description { get; set; } public string? Remark { get; set; } public List<TplCteItemReq>? Ctes { get; set; } public List<TplKdeItemReq>? Kdes { get; set; } public List<TplCteKdeItemReq>? CteKdes { get; set; } }
 public class TplCteItemReq { public string? CteCode { get; set; } public string? CteDesc { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
