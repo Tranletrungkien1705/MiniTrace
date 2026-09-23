@@ -45,7 +45,8 @@ function Layout() {
         <NavLink to="/distribution-histories">Lịch sử phân phối</NavLink>
         <NavLink to="/dealers">Đại lý</NavLink>
         <NavLink to="/manufacture-lines">Dây chuyền SX</NavLink>
-        <NavLink to="/warning-sync-es">Cảnh báo đồng bộ ES</NavLink></nav>
+        <NavLink to="/warning-sync-es">Cảnh báo đồng bộ ES</NavLink>
+        <NavLink to="/provinces">Tỉnh/Thành phố</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1910,6 +1911,59 @@ function DistributionHistoryForm({ row, onClose, onSaved }) {
   )
 }
 
+function Provinces() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.provinces(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (p) => {
+    if (!window.confirm(`Xóa tỉnh/thành ${p.code}?`)) return
+    try { const r = await api.deleteProvince(p.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Tỉnh / Thành phố</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / tên tỉnh…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, code: '', name: '', countryCode: 'VN', active: true })}>+ Thêm tỉnh/thành</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục tỉnh/thành phố (GS1 Province — Mst_Province) — "từ điển" đơn vị hành chính cấp tỉnh, mắt xích "địa lý" của chuỗi truy xuất. Khi khai báo đại lý (Mst_Dealer.ProvinceCode) hoặc huyện, mã tỉnh phải tồn tại và đang hoạt động.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (ProvinceCode)</th><th>Tên tỉnh/thành</th><th>Quốc gia</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(p => (
+            <tr key={p.id}><td style={{ fontFamily: 'monospace' }}>{p.code}</td><td>{p.name}</td>
+              <td className="muted">{p.countryCode || '—'}</td>
+              <td><Badge text={p.active ? 'Đang dùng' : 'Ngưng'} css={p.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(p)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(p)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={5} className="muted" style={{ padding: 20 }}>Chưa có tỉnh/thành.</td></tr>}</tbody></table>
+      </div>
+      {edit && <ProvinceForm province={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function ProvinceForm({ province, onClose, onSaved }) {
+  const [f, setF] = useState({ ...province }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveProvince({ ...f }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa tỉnh/thành ${f.code}` : 'Thêm tỉnh/thành'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã tỉnh/thành (ProvinceCode) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: 79" /></Field>
+        <Field label="Tên tỉnh/thành (ProvinceName) *"><input value={f.name} onChange={e => up('name', e.target.value)} placeholder="vd: TP. Hồ Chí Minh" /></Field></div>
+      <Field label="Mã quốc gia (CountryCode)"><input value={f.countryCode || ''} onChange={e => up('countryCode', e.target.value)} placeholder="vd: VN" /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang hoạt động</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã + tên tỉnh/thành; mã tỉnh/thành duy nhất trong hệ thống.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 function Dealers() {
   const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
   const load = () => api.dealers(q).then(r => setRows(r.data))
@@ -2131,6 +2185,7 @@ export default function App() {
         <Route path="dealers" element={<Dealers />} />
         <Route path="manufacture-lines" element={<ManufactureLines />} />
         <Route path="warning-sync-es" element={<WarningSyncESs />} />
+        <Route path="provinces" element={<Provinces />} />
       </Route>
     </Routes>
   )

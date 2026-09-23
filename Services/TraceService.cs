@@ -142,6 +142,10 @@ public interface ITraceService
     Task<(bool ok, string msg)> SaveWarningSyncESAsync(int id, string iVerifiedIDInOutNo, string orgCode, string productCode, string? refNoSys, string idNo, string? remark);
     Task<(bool ok, string msg)> MarkWarningSyncESAsync(int id, WarningSyncStatus status);
     Task<(bool ok, string msg)> DeleteWarningSyncESAsync(int id);
+    // Danh mục tỉnh/thành phố (GS1 Province — Mst_Province của InBrandCloud)
+    Task<List<Province>> ProvincesAsync(string? q);
+    Task<(bool ok, string msg)> SaveProvinceAsync(int id, string code, string name, string? countryCode, bool active);
+    Task<(bool ok, string msg)> DeleteProvinceAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -2115,5 +2119,54 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.WarningSyncESs.Remove(w);
         await db.SaveChangesAsync();
         return (true, "Đã xóa cảnh báo.");
+    }
+
+    // ===== Danh mục tỉnh/thành phố (GS1 Province — Mst_Province của InBrandCloud) =====
+    // "Từ điển" đơn vị hành chính cấp tỉnh dùng để gắn vào đại lý (Mst_Dealer.ProvinceCode) / huyện.
+    public async Task<List<Province>> ProvincesAsync(string? q)
+    {
+        var query = db.Provinces.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(p => p.Code.Contains(q) || p.Name.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(p => p.Code).ToList();
+    }
+
+    // Lưu tỉnh/thành. Áp quy tắc InBrandCloud (Mst_Province_CheckDB):
+    //  (1) Cần mã tỉnh (ProvinceCode) + tên tỉnh (ProvinceName).
+    //  (2) Mã tỉnh duy nhất trong tenant — tương đương Mst_Province_CheckDB_ProvinceExist.
+    public async Task<(bool ok, string msg)> SaveProvinceAsync(int id, string code, string name, string? countryCode, bool active)
+    {
+        code = (code ?? "").Trim();
+        name = (name ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã tỉnh/thành (ProvinceCode).");
+        if (name.Length == 0) return (false, "Cần tên tỉnh/thành (ProvinceName).");
+        // Mã tỉnh/thành phải duy nhất trong tenant.
+        if (await db.Provinces.AnyAsync(p => p.Code == code && p.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        Province pv;
+        if (id > 0)
+        {
+            pv = await db.Provinces.FirstOrDefaultAsync(p => p.Id == id) ?? null!;
+            if (pv == null) return (false, "Không tìm thấy tỉnh/thành.");
+        }
+        else { pv = new Province(); db.Provinces.Add(pv); }
+
+        pv.Code = code; pv.Name = name;
+        pv.CountryCode = string.IsNullOrWhiteSpace(countryCode) ? null : countryCode.Trim();
+        pv.Active = active;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật tỉnh/thành." : "Đã thêm tỉnh/thành.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteProvinceAsync(int id)
+    {
+        var pv = await db.Provinces.FirstOrDefaultAsync(p => p.Id == id);
+        if (pv == null) return (false, "Không tìm thấy tỉnh/thành.");
+        // Không cho xóa nếu đang được đại lý tham chiếu (giữ toàn vẹn Mst_Dealer.ProvinceCode).
+        if (await db.Dealers.AnyAsync(d => d.ProvinceCode == pv.Code))
+            return (false, $"Tỉnh/thành '{pv.Code}' đang được đại lý dùng — đổi tỉnh của đại lý trước.");
+        db.Provinces.Remove(pv);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa tỉnh/thành.");
     }
 }

@@ -113,7 +113,10 @@ export const api = {
   warningSyncESs: (q, status) => req(`/warning-sync-es?${status !== undefined && status !== null ? `status=${status}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`),
   saveWarningSyncES: (b) => req('/warning-sync-es', { method: 'POST', body: b }),
   markWarningSyncES: (id, b) => req(`/warning-sync-es/${id}/mark`, { method: 'POST', body: b }),
-  deleteWarningSyncES: (id) => req(`/warning-sync-es/${id}`, { method: 'DELETE' })
+  deleteWarningSyncES: (id) => req(`/warning-sync-es/${id}`, { method: 'DELETE' }),
+  provinces: (q) => req(`/provinces${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveProvince: (b) => req('/provinces', { method: 'POST', body: b }),
+  deleteProvince: (id) => req(`/provinces/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

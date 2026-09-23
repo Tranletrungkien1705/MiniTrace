@@ -493,6 +493,18 @@ public static class Seeder
                     SyncStatus = WarningSyncStatus.Synced, SyncedAt = DateTime.Now.AddDays(-1) });
             await db.SaveChangesAsync();
         }
+
+        // Danh mục tỉnh/thành phố (Mst_Province của InBrandCloud) — "từ điển" đơn vị hành chính cấp tỉnh.
+        if (!await db.Provinces.AnyAsync())
+        {
+            db.Provinces.AddRange(
+                new Province { Code = "79", Name = "TP. Hồ Chí Minh", CountryCode = "VN", Active = true },
+                new Province { Code = "92", Name = "Cần Thơ", CountryCode = "VN", Active = true },
+                new Province { Code = "01", Name = "Hà Nội", CountryCode = "VN", Active = true },
+                new Province { Code = "89", Name = "An Giang", CountryCode = "VN", Active = true },
+                new Province { Code = "94", Name = "Sóc Trăng", CountryCode = "VN", Active = false });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -506,7 +518,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines", "WarningSyncESs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines", "WarningSyncESs", "Provinces" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

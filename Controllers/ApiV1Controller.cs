@@ -845,6 +845,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục tỉnh/thành phố (GS1 Province — Mst_Province của InBrandCloud) =====
+    [HttpGet("provinces")]
+    public async Task<IActionResult> Provinces([FromQuery] string? q)
+        => Ok((await svc.ProvincesAsync(q)).Select(p => new { p.Id, p.Code, p.Name, p.CountryCode, p.Active, p.CreatedAt }));
+
+    [HttpPost("provinces")]
+    public async Task<IActionResult> SaveProvince([FromBody] ProvinceReq r)
+    {
+        var (ok, msg) = await svc.SaveProvinceAsync(r.Id, r.Code ?? "", r.Name ?? "", r.CountryCode, r.Active);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("provinces/{id:int}")]
+    public async Task<IActionResult> DeleteProvince(int id)
+    {
+        var (ok, msg) = await svc.DeleteProvinceAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -1050,3 +1069,5 @@ public class WarningSyncESReq
 }
 
 public class WarningSyncESMarkReq { public int Status { get; set; } }
+
+public class ProvinceReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? CountryCode { get; set; } public bool Active { get; set; } = true; }

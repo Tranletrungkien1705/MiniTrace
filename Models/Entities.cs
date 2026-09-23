@@ -987,3 +987,23 @@ public class WarningSyncES : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Danh mục Tỉnh / Thành phố (GS1 Province — Mst_Province của InBrandCloud).
+/// "Từ điển" đơn vị hành chính cấp tỉnh trong chuỗi truy xuất: mỗi dòng gắn một mã tỉnh
+/// (ProvinceCode) với tên tỉnh (ProvinceName) và cờ hoạt động (FlagActive). Đây là mắt xích
+/// "địa lý" của chuỗi cung ứng: khi khai báo đại lý (Mst_Dealer.ProvinceCode) hoặc huyện
+/// (Mst_District.ProvinceCode), mã tỉnh phải tồn tại và đang hoạt động trong danh mục này
+/// (tương đương Mst_Province_CheckDB của InBrandCloud: ProvinceNotFound / ProvinceExist /
+/// FlagActiveNotMatched).
+/// </summary>
+public class Province : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // ProvinceCode — mã tỉnh/thành (duy nhất trong tenant)
+    public string Name { get; set; } = "";        // ProvinceName — tên tỉnh/thành
+    public string? CountryCode { get; set; }        // CountryCode — mã quốc gia (tham chiếu Mst_Country)
+    public bool Active { get; set; } = true;        // FlagActive — đang hoạt động
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
