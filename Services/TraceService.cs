@@ -31,6 +31,10 @@ public interface ITraceService
     // Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE)
     Task<List<CteKde>> CteKdesAsync(string? cteCode);
     Task<(bool ok, string msg)> SaveCteKdesAsync(string cteCode, List<CteKdeInput> items);
+    // Danh mục địa điểm toàn cầu (GS1 GLN — Mst_GLN của InBrandCloud eTEM)
+    Task<List<Gln>> GlnsAsync(string? q);
+    Task<(bool ok, string msg)> SaveGlnAsync(int id, string code, string name, string? gpsLat, string? gpsLong, string? remark, bool active);
+    Task<(bool ok, string msg)> DeleteGlnAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -304,6 +308,51 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
             db.CteKdes.Add(new CteKde { CteCode = cteCode, KdeCode = i.KdeCode.Trim(), NetworkType = cte.NetworkType, FlagKey = i.FlagKey, FlagOsOrgView = i.FlagOsOrgView });
         await db.SaveChangesAsync();
         return (true, $"Đã lưu {clean.Count} thành phần cho sự kiện '{cteCode}'.");
+    }
+
+    // ===== Danh mục địa điểm toàn cầu (GS1 GLN — Mst_GLN của InBrandCloud eTEM) =====
+    // "Từ điển" các địa điểm chuỗi cung ứng (nhà máy/kho/đại lý/cửa hàng) kèm toạ độ GPS.
+    public async Task<List<Gln>> GlnsAsync(string? q)
+    {
+        var query = db.Glns.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(g => g.Code.Contains(q) || g.Name.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(g => g.Code).ToList();
+    }
+
+    public async Task<(bool ok, string msg)> SaveGlnAsync(int id, string code, string name, string? gpsLat, string? gpsLong, string? remark, bool active)
+    {
+        code = (code ?? "").Trim();
+        name = (name ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã địa điểm (GLNCode).");
+        if (name.Length == 0) return (false, "Cần tên địa điểm (GLNName).");
+        // Mã địa điểm phải duy nhất trong tenant.
+        if (await db.Glns.AnyAsync(g => g.Code == code && g.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        Gln gln;
+        if (id > 0)
+        {
+            gln = await db.Glns.FirstOrDefaultAsync(g => g.Id == id) ?? null!;
+            if (gln == null) return (false, "Không tìm thấy địa điểm.");
+        }
+        else { gln = new Gln(); db.Glns.Add(gln); }
+
+        gln.Code = code; gln.Name = name;
+        gln.GpsLat = string.IsNullOrWhiteSpace(gpsLat) ? null : gpsLat.Trim();
+        gln.GpsLong = string.IsNullOrWhiteSpace(gpsLong) ? null : gpsLong.Trim();
+        gln.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        gln.Active = active;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật địa điểm." : "Đã thêm địa điểm.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteGlnAsync(int id)
+    {
+        var gln = await db.Glns.FirstOrDefaultAsync(g => g.Id == id);
+        if (gln == null) return (false, "Không tìm thấy địa điểm.");
+        db.Glns.Remove(gln);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa địa điểm.");
     }
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();

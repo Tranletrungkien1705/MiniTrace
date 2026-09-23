@@ -23,7 +23,7 @@ function Layout() {
         <NavLink to="/" end>Tổng quan</NavLink><NavLink to="/units">Đơn vị truy xuất</NavLink>
         <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink>
         <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink>
-        <NavLink to="/kdes">Thành phần (KDE)</NavLink></nav>
+        <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -387,6 +387,61 @@ function CteKdeMap({ kde, onClose }) {
   )
 }
 
+function Glns() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.glns(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (g) => {
+    if (!window.confirm(`Xóa địa điểm ${g.code}?`)) return
+    try { const r = await api.deleteGln(g.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Địa điểm (GLN)</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / tên…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, code: '', name: '', gpsLat: '', gpsLong: '', remark: '', active: true })}>+ Thêm địa điểm</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục địa điểm toàn cầu (GS1 Global Location Number) — "từ điển" các địa điểm chuỗi cung ứng (nhà máy/kho/đại lý/cửa hàng) kèm toạ độ GPS để gắn vào sự kiện truy xuất.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (GLNCode)</th><th>Tên địa điểm</th><th>Vĩ độ</th><th>Kinh độ</th><th>Ghi chú</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(g => (
+            <tr key={g.id}><td style={{ fontFamily: 'monospace' }}>{g.code}</td><td>{g.name}</td>
+              <td className="muted">{g.gpsLat || '—'}</td><td className="muted">{g.gpsLong || '—'}</td><td className="muted">{g.remark || '—'}</td>
+              <td><Badge text={g.active ? 'Đang dùng' : 'Ngưng'} css={g.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(g)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(g)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có địa điểm.</td></tr>}</tbody></table>
+      </div>
+      {edit && <GlnForm gln={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function GlnForm({ gln, onClose, onSaved }) {
+  const [f, setF] = useState({ ...gln }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveGln({ id: f.id, code: f.code, name: f.name, gpsLat: f.gpsLat, gpsLong: f.gpsLong, remark: f.remark, active: f.active }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa địa điểm ${f.code}` : 'Thêm địa điểm (GLN)'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã địa điểm (GLNCode) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: 8930001000001" /></Field>
+        <Field label="Tên địa điểm *"><input value={f.name} onChange={e => up('name', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Vĩ độ (GPSLat)"><input value={f.gpsLat || ''} onChange={e => up('gpsLat', e.target.value)} placeholder="10.7769" /></Field>
+        <Field label="Kinh độ (GPSLong)"><input value={f.gpsLong || ''} onChange={e => up('gpsLong', e.target.value)} placeholder="106.7009" /></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang sử dụng</label>
+      <div style={{ marginTop: 16 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -398,6 +453,7 @@ export default function App() {
         <Route path="verify" element={<Verify />} />
         <Route path="ctes" element={<Ctes />} />
         <Route path="kdes" element={<Kdes />} />
+        <Route path="glns" element={<Glns />} />
       </Route>
     </Routes>
   )

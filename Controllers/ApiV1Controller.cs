@@ -157,6 +157,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục địa điểm toàn cầu (GS1 GLN — Mst_GLN của InBrandCloud eTEM) =====
+    [HttpGet("glns")]
+    public async Task<IActionResult> Glns([FromQuery] string? q)
+        => Ok((await svc.GlnsAsync(q)).Select(g => new { g.Id, g.Code, g.Name, g.GpsLat, g.GpsLong, g.Remark, g.Active, g.CreatedAt }));
+
+    [HttpPost("glns")]
+    public async Task<IActionResult> SaveGln([FromBody] GlnReq r)
+    {
+        var (ok, msg) = await svc.SaveGlnAsync(r.Id, r.Code ?? "", r.Name ?? "", r.GpsLat, r.GpsLong, r.Remark, r.Active);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("glns/{id:int}")]
+    public async Task<IActionResult> DeleteGln(int id)
+    {
+        var (ok, msg) = await svc.DeleteGlnAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -189,4 +208,5 @@ public class CteReq { public int Id { get; set; } public string? Code { get; set
 public class KdeReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public string? NetworkType { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }
 public class CteKdeReq { public string? CteCode { get; set; } public List<CteKdeItemReq>? Items { get; set; } }
 public class CteKdeItemReq { public string? KdeCode { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
+public class GlnReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? GpsLat { get; set; } public string? GpsLong { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; }
 

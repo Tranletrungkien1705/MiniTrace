@@ -117,6 +117,25 @@ public class CteKde : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Danh mục Địa điểm toàn cầu (GS1 Global Location Number — GLN).
+/// Tương đương bảng Mst_GLN của InBrandCloud eTEM: định danh "từ điển" các địa điểm
+/// trong chuỗi cung ứng (nhà máy, kho, đại lý, cửa hàng…) kèm toạ độ GPS để gắn
+/// vào sự kiện truy xuất (ai/ở đâu/khi nào).
+/// </summary>
+public class Gln : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // GLNCode — mã địa điểm (duy nhất trong tenant)
+    public string Name { get; set; } = "";        // GLNName — tên địa điểm
+    public string? GpsLat { get; set; }             // GPSLat — vĩ độ
+    public string? GpsLong { get; set; }            // GPSLong — kinh độ
+    public string? Remark { get; set; }             // Remark — ghi chú
+    public bool Active { get; set; } = true;        // FlagActive
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

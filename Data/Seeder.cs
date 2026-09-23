@@ -95,13 +95,24 @@ public static class Seeder
                 new CteKde { CteCode = "CONSUMER_SCAN", KdeCode = "SERIAL_NO", NetworkType = "Consumer", FlagKey = true });
             await db.SaveChangesAsync();
         }
+
+        // Danh mục địa điểm toàn cầu (GS1 GLN) — "từ điển" các địa điểm chuỗi cung ứng kèm toạ độ GPS.
+        if (!await db.Glns.AnyAsync())
+        {
+            db.Glns.AddRange(
+                new Gln { Code = "8930001000001", Name = "Nhà máy HTX Lúa gạo ST", GpsLat = "9.6025", GpsLong = "105.9739", Remark = "Sóc Trăng", Active = true },
+                new Gln { Code = "8930001000002", Name = "Kho thành phẩm Sóc Trăng", GpsLat = "9.6031", GpsLong = "105.9801", Remark = "Kho FG", Active = true },
+                new Gln { Code = "8930001000003", Name = "Đại lý phân phối TP.HCM", GpsLat = "10.7769", GpsLong = "106.7009", Remark = "Đại lý cấp 1", Active = true },
+                new Gln { Code = "8930001000004", Name = "Siêu thị Co.opmart Q.1", GpsLat = "10.7756", GpsLong = "106.7019", Remark = "Điểm bán lẻ", Active = true });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task MigratePostgresAsync(AppDbContext db)
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

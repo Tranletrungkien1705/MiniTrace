@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<Cte> Ctes => Set<Cte>();
     public DbSet<Kde> Kdes => Set<Kde>();
     public DbSet<CteKde> CteKdes => Set<CteKde>();
+    public DbSet<Gln> Glns => Set<Gln>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -53,6 +54,11 @@ public class AppDbContext : DbContext
         b.Entity<CteKde>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.CteCode, x.KdeCode }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<Gln>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

@@ -27,7 +27,10 @@ export const api = {
   saveKde: (b) => req('/kdes', { method: 'POST', body: b }),
   deleteKde: (id) => req(`/kdes/${id}`, { method: 'DELETE' }),
   cteKdes: (cteCode) => req(`/cte-kdes${cteCode ? `?cteCode=${encodeURIComponent(cteCode)}` : ''}`),
-  saveCteKdes: (b) => req('/cte-kdes', { method: 'POST', body: b })
+  saveCteKdes: (b) => req('/cte-kdes', { method: 'POST', body: b }),
+  glns: (q) => req(`/glns${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveGln: (b) => req('/glns', { method: 'POST', body: b }),
+  deleteGln: (id) => req(`/glns/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'
