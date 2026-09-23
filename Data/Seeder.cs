@@ -280,6 +280,22 @@ public static class Seeder
                 new MasterData { Code = "MD_EVENT", NetworkId = "Distributor", TableName = "Event_Event", Active = false, Remark = "Bảng sự kiện chuỗi cung ứng (tạm ngưng tra cứu)" });
             await db.SaveChangesAsync();
         }
+
+        // Tổ chức tham gia mạng lưới truy xuất (Mst_NNT của InBrandCloud eTEM) — doanh nghiệp đăng ký tham gia chuỗi.
+        if (!await db.NetworkOrgs.AnyAsync())
+        {
+            db.NetworkOrgs.AddRange(
+                new NetworkOrg { Mst = "MST-NXSX-ST", FullName = "HTX Lúa gạo ST25 Sóc Trăng", NetworkType = "Manufacturer", OrgCode = "ORG-NXSX-ST",
+                    Address = "Sóc Trăng", Mobile = "0901111222", ContactName = "Nguyễn Văn A", ContactEmail = "a@htxst.vn", Gln = "8930001000001",
+                    EltsMstId = "ELTSMST.DEMO00000001", Status = NetworkOrgStatus.Approved, Active = true, Remark = "Nhà sản xuất chính" },
+                new NetworkOrg { Mst = "MST-DL-HCM", FullName = "Đại lý phân phối TP.HCM", NetworkType = "Distributor", OrgCode = "ORG-DL-HCM",
+                    Address = "TP.HCM", Mobile = "0903333444", ContactName = "Trần Thị B", ContactEmail = "b@dailyhcm.vn", Gln = "8930001000003",
+                    Status = NetworkOrgStatus.New, Active = true, Remark = "Đại lý cấp 1 — chờ đăng ký mạng" },
+                new NetworkOrg { Mst = "MST-BANLE-COOP", FullName = "Siêu thị Co.opmart Q.1", NetworkType = "Dealer", OrgCode = "ORG-BANLE-COOP",
+                    Address = "Q.1 TP.HCM", Mobile = "0905555666", ContactName = "Lê Văn C", Gln = "8930001000004",
+                    Status = NetworkOrgStatus.New, Active = false, Remark = "Điểm bán lẻ — tạm ngưng" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -293,7 +309,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "QueSyncs", "MasterDatas" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "QueSyncs", "MasterDatas", "NetworkOrgs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

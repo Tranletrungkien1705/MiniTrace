@@ -83,6 +83,12 @@ public interface ITraceService
     Task<List<MasterData>> MasterDatasAsync(string? q);
     Task<(bool ok, string msg)> SaveMasterDataAsync(int id, string code, string? networkId, string tableName, bool active, string? remark);
     Task<(bool ok, string msg)> DeleteMasterDataAsync(int id);
+    // Tổ chức tham gia mạng lưới truy xuất (GS1 Network Organization — Mst_NNT của InBrandCloud eTEM)
+    Task<List<NetworkOrg>> NetworkOrgsAsync(string? q);
+    Task<(bool ok, string msg)> SaveNetworkOrgAsync(int id, string mst, string fullName, string? networkType, string? orgCode, string? address, string? mobile, string? contactName, string? contactEmail, string? gln, bool active, string? remark);
+    Task<(bool ok, string msg)> DeleteNetworkOrgAsync(int id);
+    // Đăng ký tổ chức vào mạng lưới: cấp ELTSMSTId (nếu chưa có) + đẩy vào hàng đợi đồng bộ (Mst_NNT_QueSync)
+    Task<(bool ok, string msg)> RegisterNetworkOrgAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1161,4 +1167,105 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         await db.SaveChangesAsync();
         return (true, "Đã xóa danh mục dữ liệu gốc.");
     }
+
+    // ===== Tổ chức tham gia mạng lưới truy xuất (GS1 Network Organization — Mst_NNT của InBrandCloud eTEM) =====
+    // Mỗi dòng = 1 doanh nghiệp/tổ chức đăng ký tham gia chuỗi truy xuất theo một loại mạng (NetworkType).
+    public async Task<List<NetworkOrg>> NetworkOrgsAsync(string? q)
+    {
+        var query = db.NetworkOrgs.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(o => o.Mst.Contains(q) || o.FullName.Contains(q) || (o.NetworkType != null && o.NetworkType.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderBy(o => o.Mst).ToList();
+    }
+
+    // Lưu tổ chức. Áp quy tắc InBrandCloud (Mst_NNT_CheckDB):
+    //  (1) Cần mã số thuế/định danh (MST) + tên đầy đủ (NNTFullName).
+    //  (2) MST duy nhất trong tenant.
+    public async Task<(bool ok, string msg)> SaveNetworkOrgAsync(int id, string mst, string fullName, string? networkType, string? orgCode,
+        string? address, string? mobile, string? contactName, string? contactEmail, string? gln, bool active, string? remark)
+    {
+        mst = (mst ?? "").Trim();
+        fullName = (fullName ?? "").Trim();
+        if (mst.Length == 0) return (false, "Cần mã số thuế / định danh tổ chức (MST).");
+        if (fullName.Length == 0) return (false, "Cần tên đầy đủ của tổ chức (NNTFullName).");
+        // (2) MST duy nhất trong tenant.
+        if (await db.NetworkOrgs.AnyAsync(o => o.Mst == mst && o.Id != id)) return (false, $"Mã '{mst}' đã tồn tại.");
+
+        NetworkOrg org;
+        if (id > 0)
+        {
+            org = await db.NetworkOrgs.FirstOrDefaultAsync(o => o.Id == id) ?? null!;
+            if (org == null) return (false, "Không tìm thấy tổ chức.");
+        }
+        else { org = new NetworkOrg(); db.NetworkOrgs.Add(org); }
+
+        org.Mst = mst; org.FullName = fullName;
+        org.NetworkType = string.IsNullOrWhiteSpace(networkType) ? null : networkType.Trim();
+        org.OrgCode = string.IsNullOrWhiteSpace(orgCode) ? null : orgCode.Trim();
+        org.Address = string.IsNullOrWhiteSpace(address) ? null : address.Trim();
+        org.Mobile = string.IsNullOrWhiteSpace(mobile) ? null : mobile.Trim();
+        org.ContactName = string.IsNullOrWhiteSpace(contactName) ? null : contactName.Trim();
+        org.ContactEmail = string.IsNullOrWhiteSpace(contactEmail) ? null : contactEmail.Trim();
+        org.Gln = string.IsNullOrWhiteSpace(gln) ? null : gln.Trim();
+        org.Active = active;
+        org.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật tổ chức." : "Đã thêm tổ chức.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteNetworkOrgAsync(int id)
+    {
+        var org = await db.NetworkOrgs.FirstOrDefaultAsync(o => o.Id == id);
+        if (org == null) return (false, "Không tìm thấy tổ chức.");
+        db.NetworkOrgs.Remove(org);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa tổ chức.");
+    }
+
+    // Đăng ký tổ chức vào mạng lưới truy xuất (tương đương Mst_NNT_QueSync của InBrandCloud eTEM).
+    // Áp quy tắc nghiệp vụ:
+    //  (1) Tổ chức phải tồn tại và đang hoạt động (Mst_NNT_CheckDB với FlagActive).
+    //  (2) Nếu chưa có mã định danh ngoài mạng (ELTSMSTId) thì cấp mới (tương đương Seq_GenObjCode_V1_GetX).
+    //  (3) Đưa tổ chức vào hàng đợi đồng bộ (QueSync_Mst_NNT) với TableCode = Mst_NNT — chống đẩy trùng.
+    //  (4) Đánh dấu tổ chức đã duyệt tham gia mạng (RegisterStatus = APPROVED).
+    public async Task<(bool ok, string msg)> RegisterNetworkOrgAsync(int id)
+    {
+        var org = await db.NetworkOrgs.FirstOrDefaultAsync(o => o.Id == id);
+        if (org == null) return (false, "Không tìm thấy tổ chức.");
+        // (1) Tổ chức phải đang hoạt động.
+        if (!org.Active) return (false, $"Tổ chức '{org.Mst}' đang ngưng hoạt động — không thể đăng ký mạng.");
+
+        // (2) Cấp mã định danh ngoài mạng nếu chưa có.
+        var assigned = false;
+        if (string.IsNullOrWhiteSpace(org.EltsMstId))
+        {
+            org.EltsMstId = NewEltsMstId();
+            assigned = true;
+        }
+
+        // (3) Đưa vào hàng đợi đồng bộ (TableCode = Mst_NNT) — chống đẩy trùng theo (NetworkID, QueSyncNo, TableCode).
+        var networkId = string.IsNullOrWhiteSpace(org.NetworkType) ? "Default" : org.NetworkType!;
+        var queSyncNo = org.EltsMstId!;
+        var exists = await db.QueSyncs.AnyAsync(x => x.NetworkId == networkId && x.QueSyncNo == queSyncNo && x.TableCode == "Mst_NNT");
+        if (!exists)
+        {
+            db.QueSyncs.Add(new QueSync
+            {
+                NetworkId = networkId, QueSyncNo = queSyncNo, TableCode = "Mst_NNT",
+                FlagSync = true, FlagSyncBL = false, Status = QueSyncStatus.Pending,
+                Remark = $"Đẩy tổ chức '{org.Mst}' ({org.FullName}) lên mạng '{networkId}'"
+            });
+        }
+
+        // (4) Đánh dấu đã duyệt tham gia mạng.
+        org.Status = NetworkOrgStatus.Approved;
+        await db.SaveChangesAsync();
+        return (true, assigned
+            ? $"Đã cấp mã mạng '{queSyncNo}' và đưa tổ chức '{org.Mst}' vào hàng đợi đồng bộ."
+            : $"Đã đưa tổ chức '{org.Mst}' vào hàng đợi đồng bộ (mã mạng '{queSyncNo}').");
+    }
+
+    // Sinh mã định danh ngoài mạng (tương đương Seq_GenObjCode_V1_GetX của InBrandCloud eTEM).
+    private static string NewEltsMstId() => "ELTSMST." + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
 }

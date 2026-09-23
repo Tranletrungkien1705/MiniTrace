@@ -68,7 +68,11 @@ export const api = {
   deleteQueSync: (id) => req(`/que-syncs/${id}`, { method: 'DELETE' }),
   masterDatas: (q) => req(`/master-datas${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveMasterData: (b) => req('/master-datas', { method: 'POST', body: b }),
-  deleteMasterData: (id) => req(`/master-datas/${id}`, { method: 'DELETE' })
+  deleteMasterData: (id) => req(`/master-datas/${id}`, { method: 'DELETE' }),
+  networkOrgs: (q) => req(`/network-orgs${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveNetworkOrg: (b) => req('/network-orgs', { method: 'POST', body: b }),
+  registerNetworkOrg: (id) => req(`/network-orgs/${id}/register`, { method: 'POST' }),
+  deleteNetworkOrg: (id) => req(`/network-orgs/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

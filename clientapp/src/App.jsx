@@ -32,7 +32,8 @@ function Layout() {
         <NavLink to="/stamps">Sinh tem</NavLink>
         <NavLink to="/boxes">Đóng hộp</NavLink>
         <NavLink to="/que-syncs">Hàng đợi đồng bộ</NavLink>
-        <NavLink to="/master-datas">Dữ liệu gốc</NavLink></nav>
+        <NavLink to="/master-datas">Dữ liệu gốc</NavLink>
+        <NavLink to="/network-orgs">Tổ chức mạng</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1174,6 +1175,74 @@ function MasterDataForm({ md, onClose, onSaved }) {
   )
 }
 
+function NetworkOrgs() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.networkOrgs(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (o) => {
+    if (!window.confirm(`Xóa tổ chức ${o.mst}?`)) return
+    try { const r = await api.deleteNetworkOrg(o.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  const register = async (o) => {
+    try { const r = await api.registerNetworkOrg(o.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Tổ chức mạng</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm MST / tên / loại mạng…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, mst: '', fullName: '', networkType: '', orgCode: '', address: '', mobile: '', contactName: '', contactEmail: '', gln: '', active: true, remark: '' })}>+ Thêm tổ chức</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Tổ chức tham gia mạng lưới truy xuất (GS1 Network Organization — Mst_NNT) — doanh nghiệp đăng ký tham gia chuỗi theo loại mạng. Đăng ký mạng sẽ cấp mã định danh ngoài mạng (ELTSMSTId) và đưa vào hàng đợi đồng bộ (Mst_NNT_QueSync).</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>MST</th><th>Tên tổ chức</th><th>Loại mạng</th><th>Mã mạng (ELTSMSTId)</th><th>Trạng thái</th><th>Hoạt động</th><th></th></tr></thead>
+          <tbody>{rows.map(o => (
+            <tr key={o.id}><td style={{ fontFamily: 'monospace' }}>{o.mst}</td><td>{o.fullName}</td>
+              <td>{o.networkType || '—'}</td>
+              <td style={{ fontFamily: 'monospace' }}>{o.eltsMstId || '—'}</td>
+              <td><Badge text={o.statusText} css={o.css} /></td>
+              <td><Badge text={o.active ? 'Đang dùng' : 'Ngưng'} css={o.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => register(o)}>Đăng ký mạng</button>{' '}
+                <button className="btn ghost sm" onClick={() => setEdit(o)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(o)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có tổ chức.</td></tr>}</tbody></table>
+      </div>
+      {edit && <NetworkOrgForm org={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function NetworkOrgForm({ org, onClose, onSaved }) {
+  const [f, setF] = useState({ ...org }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveNetworkOrg({ id: f.id, mst: f.mst, fullName: f.fullName, networkType: f.networkType, orgCode: f.orgCode, address: f.address, mobile: f.mobile, contactName: f.contactName, contactEmail: f.contactEmail, gln: f.gln, active: f.active, remark: f.remark }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa tổ chức ${f.mst}` : 'Thêm tổ chức mạng'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã số thuế / định danh (MST) *"><input value={f.mst} onChange={e => up('mst', e.target.value)} placeholder="vd: MST-NXSX-ST" /></Field>
+        <Field label="Loại mạng (NetworkID)"><select value={f.networkType || ''} onChange={e => up('networkType', e.target.value)}>
+          <option value="">—</option>{CTE_NET.map(n => <option key={n} value={n}>{n}</option>)}</select></Field></div>
+      <Field label="Tên đầy đủ của tổ chức (NNTFullName) *"><input value={f.fullName} onChange={e => up('fullName', e.target.value)} /></Field>
+      <div className="row"><Field label="Mã tổ chức nội bộ (OrgID)"><input value={f.orgCode || ''} onChange={e => up('orgCode', e.target.value)} /></Field>
+        <Field label="Mã địa điểm (GLN)"><input value={f.gln || ''} onChange={e => up('gln', e.target.value)} /></Field></div>
+      <Field label="Địa chỉ"><input value={f.address || ''} onChange={e => up('address', e.target.value)} /></Field>
+      <div className="row"><Field label="Điện thoại"><input value={f.mobile || ''} onChange={e => up('mobile', e.target.value)} /></Field>
+        <Field label="Người liên hệ"><input value={f.contactName || ''} onChange={e => up('contactName', e.target.value)} /></Field></div>
+      <Field label="Email liên hệ"><input value={f.contactEmail || ''} onChange={e => up('contactEmail', e.target.value)} /></Field>
+      <Field label="Ghi chú"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang hoạt động</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần MST + tên đầy đủ; MST duy nhất trong tenant. Đăng ký mạng chỉ cho tổ chức đang hoạt động.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1196,6 +1265,7 @@ export default function App() {
         <Route path="boxes" element={<Boxes />} />
         <Route path="que-syncs" element={<QueSyncs />} />
         <Route path="master-datas" element={<MasterDatas />} />
+        <Route path="network-orgs" element={<NetworkOrgs />} />
       </Route>
     </Routes>
   )

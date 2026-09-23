@@ -49,4 +49,12 @@ public static class Ui
         QueSyncStatus.Failed => ("Đồng bộ lỗi", "danger", "bi-cloud-slash"),
         _ => (s.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) NetworkOrg(NetworkOrgStatus s) => s switch
+    {
+        NetworkOrgStatus.New => ("Mới đăng ký", "warning", "bi-hourglass-split"),
+        NetworkOrgStatus.Approved => ("Đã duyệt mạng", "success", "bi-patch-check"),
+        NetworkOrgStatus.Rejected => ("Bị từ chối", "danger", "bi-x-circle"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

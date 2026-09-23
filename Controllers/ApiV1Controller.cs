@@ -474,6 +474,38 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Tổ chức tham gia mạng lưới truy xuất (GS1 Network Organization — Mst_NNT của InBrandCloud eTEM) =====
+    [HttpGet("network-orgs")]
+    public async Task<IActionResult> NetworkOrgs([FromQuery] string? q)
+        => Ok((await svc.NetworkOrgsAsync(q)).Select(o => new
+        {
+            o.Id, o.Mst, o.FullName, o.NetworkType, o.OrgCode, o.Address, o.Mobile, o.ContactName, o.ContactEmail, o.Gln,
+            o.EltsMstId, status = (int)o.Status, statusText = Ui.NetworkOrg(o.Status).text, css = Ui.NetworkOrg(o.Status).css,
+            o.Active, o.Remark, o.CreatedAt
+        }));
+
+    [HttpPost("network-orgs")]
+    public async Task<IActionResult> SaveNetworkOrg([FromBody] NetworkOrgReq r)
+    {
+        var (ok, msg) = await svc.SaveNetworkOrgAsync(r.Id, r.Mst ?? "", r.FullName ?? "", r.NetworkType, r.OrgCode,
+            r.Address, r.Mobile, r.ContactName, r.ContactEmail, r.Gln, r.Active, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("network-orgs/{id:int}/register")]
+    public async Task<IActionResult> RegisterNetworkOrg(int id)
+    {
+        var (ok, msg) = await svc.RegisterNetworkOrgAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("network-orgs/{id:int}")]
+    public async Task<IActionResult> DeleteNetworkOrg(int id)
+    {
+        var (ok, msg) = await svc.DeleteNetworkOrgAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -523,4 +555,5 @@ public class BoxStampsReq { public List<string>? IdNos { get; set; } public stri
 public class QueSyncReq { public int Id { get; set; } public string? NetworkId { get; set; } public string? QueSyncNo { get; set; } public string? TableCode { get; set; } public bool FlagSyncBL { get; set; } public string? Remark { get; set; } }
 public class QueSyncMarkReq { public int Status { get; set; } public string? ErrorDetail { get; set; } }
 public class MasterDataReq { public int Id { get; set; } public string? Code { get; set; } public string? NetworkId { get; set; } public string? TableName { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
+public class NetworkOrgReq { public int Id { get; set; } public string? Mst { get; set; } public string? FullName { get; set; } public string? NetworkType { get; set; } public string? OrgCode { get; set; } public string? Address { get; set; } public string? Mobile { get; set; } public string? ContactName { get; set; } public string? ContactEmail { get; set; } public string? Gln { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
 

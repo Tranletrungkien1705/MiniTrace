@@ -490,6 +490,44 @@ public class MasterData : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Trạng thái đăng ký tổ chức vào mạng lưới truy xuất (RegisterStatus của Mst_NNT).
+/// NEW = mới đăng ký, APPROVED = đã được duyệt tham gia mạng, REJECTED = bị từ chối.
+/// </summary>
+public enum NetworkOrgStatus
+{
+    New = 0,        // NEW — mới đăng ký
+    Approved = 1,   // APPROVED — đã duyệt tham gia mạng
+    Rejected = 2    // REJECTED — bị từ chối
+}
+
+/// <summary>
+/// Tổ chức tham gia mạng lưới truy xuất (GS1 Network Organization — Mst_NNT của InBrandCloud eTEM).
+/// Mỗi dòng = 1 doanh nghiệp/tổ chức (nhà sản xuất, kho, đại lý, điểm bán lẻ…) đăng ký tham gia
+/// chuỗi truy xuất theo một loại mạng (NetworkType). Khi đăng ký, hệ thống cấp một mã định danh
+/// ngoài mạng (ELTSMSTId) nếu chưa có, rồi đưa tổ chức vào hàng đợi đồng bộ (QueSync_Mst_NNT)
+/// để đẩy lên máy chủ eTEM/ELTS (tương đương Mst_NNT_QueSync của InBrandCloud).
+/// </summary>
+public class NetworkOrg : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Mst { get; set; } = "";            // MST — mã số thuế / mã định danh tổ chức (duy nhất trong tenant)
+    public string FullName { get; set; } = "";        // NNTFullName — tên đầy đủ của tổ chức
+    public string? NetworkType { get; set; }            // NetworkID — loại mạng/đối tác áp dụng
+    public string? OrgCode { get; set; }                // OrgID — mã tổ chức nội bộ (Mst_Org)
+    public string? Address { get; set; }                // NNTAddress — địa chỉ
+    public string? Mobile { get; set; }                 // NNTMobile — điện thoại di động
+    public string? ContactName { get; set; }            // ContactName — người liên hệ
+    public string? ContactEmail { get; set; }           // ContactEmail — email liên hệ
+    public string? Gln { get; set; }                    // GLN — mã địa điểm toàn cầu (nếu có)
+    public string? EltsMstId { get; set; }              // ELTSMSTId — mã định danh ngoài mạng (cấp khi đăng ký)
+    public NetworkOrgStatus Status { get; set; } = NetworkOrgStatus.New;  // RegisterStatus
+    public bool Active { get; set; } = true;            // FlagActive
+    public string? Remark { get; set; }                 // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {
