@@ -258,6 +258,21 @@ public static class Seeder
             await db.SaveChangesAsync();
         }
 
+        // Đóng thùng / gán hộp vào thùng (Inv_InventoryGenCarton + Map_BoxInCarton của InBrandCloud eTEM) — thùng mẫu gom 1 hộp.
+        if (!await db.Cartons.AnyAsync())
+        {
+            var carton = new Carton
+            {
+                CanNo = "C2601010001", QR_CanNo = "C2601010001", GenTimesNo = "GT2601010001",
+                ProductCode = "8930001001", ProductName = "Gạo ST25 túi 5kg",
+                Remark = "Thùng mẫu gom hộp B2601010001", FlagMap = true, FlagUsed = false
+            };
+            db.Cartons.Add(carton); await db.SaveChangesAsync();
+            db.CartonItems.Add(
+                new CartonItem { CartonId = carton.Id, CanNo = carton.CanNo, BoxNo = "B2601010001", ProductCode = "8930001001", InvCode = "KHO-FG-ST", FlagActive = true });
+            await db.SaveChangesAsync();
+        }
+
         // Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM) — bản ghi mẫu chờ đẩy lên eTEM/ELTS.
         if (!await db.QueSyncs.AnyAsync())
         {
@@ -309,7 +324,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "QueSyncs", "MasterDatas", "NetworkOrgs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

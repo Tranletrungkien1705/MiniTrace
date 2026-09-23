@@ -31,6 +31,8 @@ public class AppDbContext : DbContext
     public DbSet<Stamp> Stamps => Set<Stamp>();
     public DbSet<Box> Boxes => Set<Box>();
     public DbSet<BoxItem> BoxItems => Set<BoxItem>();
+    public DbSet<Carton> Cartons => Set<Carton>();
+    public DbSet<CartonItem> CartonItems => Set<CartonItem>();
     public DbSet<QueSync> QueSyncs => Set<QueSync>();
     public DbSet<MasterData> MasterDatas => Set<MasterData>();
     public DbSet<NetworkOrg> NetworkOrgs => Set<NetworkOrg>();
@@ -152,6 +154,17 @@ public class AppDbContext : DbContext
         {
             e.HasOne(x => x.Box).WithMany(x => x.Items).HasForeignKey(x => x.BoxId);
             e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();   // mỗi tem chỉ nằm trong 1 hộp
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<Carton>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.CanNo }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<CartonItem>(e =>
+        {
+            e.HasOne(x => x.Carton).WithMany(x => x.Items).HasForeignKey(x => x.CartonId);
+            e.HasIndex(x => new { x.OrgId, x.BoxNo }).IsUnique();   // mỗi hộp chỉ nằm trong 1 thùng
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
         b.Entity<QueSync>(e =>

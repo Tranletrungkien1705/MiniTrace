@@ -74,6 +74,12 @@ public interface ITraceService
     Task<(bool ok, string msg)> CreateBoxAsync(string boxNo, string? productCode, string? productName, string? remark);
     Task<(bool ok, string msg)> AddStampsToBoxAsync(int boxId, List<string> idNos, string? invCode);
     Task<(bool ok, string msg)> DeleteBoxAsync(int id);
+    // Đóng thùng / gán hộp vào thùng (Inv_InventoryGenCarton + Map_BoxInCarton của InBrandCloud eTEM)
+    Task<List<Carton>> CartonsAsync(string? q);
+    Task<Carton?> GetCartonAsync(int id);
+    Task<(bool ok, string msg)> CreateCartonAsync(string canNo, string? productCode, string? productName, string? remark);
+    Task<(bool ok, string msg)> AddBoxesToCartonAsync(int cartonId, List<string> boxNos, string? invCode);
+    Task<(bool ok, string msg)> DeleteCartonAsync(int id);
     // Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM)
     Task<List<QueSync>> QueSyncsAsync(string? q);
     Task<(bool ok, string msg)> SaveQueSyncAsync(int id, string networkId, string queSyncNo, string tableCode, bool flagSyncBL, string? remark);
@@ -115,6 +121,9 @@ public record OrgGlnView(int Id, string OrgCode, string GlnCode, string? GlnName
 
 /// <summary>1 tem trong hộp (tương đương 1 dòng Map_IDInBox).</summary>
 public record BoxItemView(int Id, string IDNo, string? ProductCode, string? InvCode, bool FlagActive, DateTime CreatedAt);
+
+/// <summary>1 hộp trong thùng (tương đương 1 dòng Map_BoxInCarton).</summary>
+public record CartonItemView(int Id, string BoxNo, string? ProductCode, string? InvCode, bool FlagActive, DateTime CreatedAt);
 
 public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
@@ -1040,6 +1049,83 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Boxes.Remove(box);
         await db.SaveChangesAsync();
         return (true, "Đã xóa hộp và toàn bộ tem trong hộp.");
+    }
+
+    // ===== Đóng thùng / gán hộp vào thùng (Inv_InventoryGenCarton + Map_BoxInCarton của InBrandCloud eTEM) =====
+    // Cấp cao nhất trong hierarchy đóng gói Thùng→Hộp→Sản phẩm (doc 09 §3.3):
+    // gom nhiều hộp (BoxNo) vào một thùng (CanNo) để vận chuyển.
+    public async Task<List<Carton>> CartonsAsync(string? q)
+    {
+        var query = db.Cartons.Include(c => c.Items).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(c => c.CanNo.Contains(q) || (c.ProductCode != null && c.ProductCode.Contains(q)) || (c.ProductName != null && c.ProductName.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(c => c.CreatedAt).Take(500).ToList();
+    }
+
+    public Task<Carton?> GetCartonAsync(int id) =>
+        db.Cartons.Include(c => c.Items).FirstOrDefaultAsync(c => c.Id == id);
+
+    // Tạo thùng mới. Áp quy tắc InBrandCloud (Inv_InventoryGenCarton): cần mã thùng (CanNo) duy nhất trong tenant.
+    public async Task<(bool ok, string msg)> CreateCartonAsync(string canNo, string? productCode, string? productName, string? remark)
+    {
+        canNo = (canNo ?? "").Trim();
+        if (canNo.Length == 0) return (false, "Cần mã thùng (CanNo).");
+        if (await db.Cartons.AnyAsync(c => c.CanNo == canNo)) return (false, $"Mã thùng '{canNo}' đã tồn tại.");
+
+        db.Cartons.Add(new Carton
+        {
+            CanNo = canNo, QR_CanNo = canNo,
+            ProductCode = string.IsNullOrWhiteSpace(productCode) ? null : productCode.Trim(),
+            ProductName = string.IsNullOrWhiteSpace(productName) ? null : productName.Trim(),
+            Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim(),
+            FlagMap = false, FlagUsed = false
+        });
+        await db.SaveChangesAsync();
+        return (true, $"Đã tạo thùng '{canNo}'.");
+    }
+
+    // Gán danh sách hộp (BoxNo) vào thùng. Áp quy tắc InBrandCloud (Map_BoxInCarton):
+    //  (1) Thùng phải tồn tại.
+    //  (2) Mọi BoxNo phải tồn tại trong kho số hộp (Inv_InventoryGenBox).
+    //  (3) Mỗi hộp chỉ được nằm trong MỘT thùng (chống gán trùng).
+    public async Task<(bool ok, string msg)> AddBoxesToCartonAsync(int cartonId, List<string> boxNos, string? invCode)
+    {
+        var carton = await db.Cartons.Include(c => c.Items).FirstOrDefaultAsync(c => c.Id == cartonId);
+        if (carton == null) return (false, "Không tìm thấy thùng.");
+
+        boxNos ??= [];
+        var clean = boxNos.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct().ToList();
+        if (clean.Count == 0) return (false, "Cần chọn ít nhất 1 hộp (BoxNo).");
+
+        // (2) Mọi BoxNo phải tồn tại trong kho số hộp.
+        var exist = await db.Boxes.Where(b => clean.Contains(b.BoxNo)).Select(b => b.BoxNo).ToListAsync();
+        var missing = clean.Except(exist).ToList();
+        if (missing.Count > 0) return (false, $"Hộp không tồn tại trong kho số: {string.Join(", ", missing)}.");
+
+        // (3) Hộp chưa thuộc thùng khác (mỗi hộp chỉ nằm trong 1 thùng).
+        var inOther = await db.CartonItems.Where(i => clean.Contains(i.BoxNo) && i.CartonId != cartonId).Select(i => i.BoxNo).ToListAsync();
+        if (inOther.Count > 0) return (false, $"Hộp đã thuộc thùng khác: {string.Join(", ", inOther)}.");
+
+        // Bỏ các hộp đã có trong chính thùng này (tránh trùng).
+        var already = carton.Items.Select(i => i.BoxNo).ToHashSet();
+        var toAdd = clean.Where(x => !already.Contains(x)).ToList();
+        if (toAdd.Count == 0) return (false, "Các hộp đã có trong thùng này.");
+
+        foreach (var boxNo in toAdd)
+            db.CartonItems.Add(new CartonItem { CartonId = carton.Id, CanNo = carton.CanNo, BoxNo = boxNo, ProductCode = carton.ProductCode, InvCode = string.IsNullOrWhiteSpace(invCode) ? null : invCode.Trim(), FlagActive = true });
+        carton.FlagMap = true;
+        await db.SaveChangesAsync();
+        return (true, $"Đã gán {toAdd.Count} hộp vào thùng '{carton.CanNo}'.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteCartonAsync(int id)
+    {
+        var carton = await db.Cartons.Include(c => c.Items).FirstOrDefaultAsync(c => c.Id == id);
+        if (carton == null) return (false, "Không tìm thấy thùng.");
+        db.CartonItems.RemoveRange(carton.Items);
+        db.Cartons.Remove(carton);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa thùng và toàn bộ hộp trong thùng.");
     }
 
     // ===== Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM) =====

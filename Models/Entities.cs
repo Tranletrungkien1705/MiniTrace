@@ -436,6 +436,49 @@ public class BoxItem : IOrgOwned
 }
 
 /// <summary>
+/// Thùng đóng gói (GS1 Carton — Inv_InventoryGenCarton của InBrandCloud eTEM).
+/// Cấp cao nhất trong hierarchy đóng gói Thùng→Hộp→Sản phẩm (doc 09 §3.3):
+/// một thùng gom nhiều hộp (BoxNo) lại thành một đơn vị vận chuyển.
+/// CanNo là mã thùng (duy nhất trong tenant), QR_CanNo là mã in trên tem thùng.
+/// </summary>
+public class Carton : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string CanNo { get; set; } = "";          // CanNo — mã thùng (duy nhất trong tenant)
+    public string QR_CanNo { get; set; } = "";        // QR_CanNo — mã in trên tem thùng
+    public string? GenTimesNo { get; set; }            // GenTimesNo — lần sinh số thùng
+    public string? ProductCode { get; set; }           // ProductCode — mã chủng loại SP
+    public string? ProductName { get; set; }           // ProductName — tên chủng loại SP
+    public string? Remark { get; set; }                // Remark — ghi chú
+    public bool FlagMap { get; set; }                  // FlagMap — 0 chưa gán hộp / 1 đã gán hộp
+    public bool FlagUsed { get; set; }                 // FlagUsed — 0 chưa dùng / 1 đã dùng
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public List<CartonItem> Items { get; set; } = [];
+}
+
+/// <summary>
+/// Ánh xạ hộp vào thùng (GS1 Map_BoxInCarton của InBrandCloud eTEM).
+/// Mỗi dòng = 1 hộp (BoxNo) được gán vào 1 thùng (CanNo). Quy tắc: hộp phải tồn tại
+/// trong kho số hộp và chỉ được nằm trong MỘT thùng (chống gán trùng).
+/// </summary>
+public class CartonItem : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int CartonId { get; set; }
+    public string CanNo { get; set; } = "";          // CanNo — mã thùng
+    public string BoxNo { get; set; } = "";           // BoxNo — mã hộp được gán vào thùng
+    public string? ProductCode { get; set; }           // ProductCode — mã chủng loại SP
+    public string? InvCode { get; set; }               // InvCode — vị trí kho
+    public bool FlagActive { get; set; } = true;       // FlagActive — đang hiệu lực
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public Carton Carton { get; set; } = null!;
+}
+
+/// <summary>
 /// Trạng thái đồng bộ của một bản ghi trong hàng đợi (MstSv_QueSync của InBrandCloud eTEM).
 /// PENDING = chờ đẩy lên máy chủ eTEM/ELTS, SYNCED = đã đẩy thành công, FAILED = đẩy lỗi.
 /// </summary>

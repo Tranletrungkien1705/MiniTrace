@@ -31,6 +31,7 @@ function Layout() {
         <NavLink to="/records">Sự kiện truy xuất</NavLink>
         <NavLink to="/stamps">Sinh tem</NavLink>
         <NavLink to="/boxes">Đóng hộp</NavLink>
+        <NavLink to="/cartons">Đóng thùng</NavLink>
         <NavLink to="/que-syncs">Hàng đợi đồng bộ</NavLink>
         <NavLink to="/master-datas">Dữ liệu gốc</NavLink>
         <NavLink to="/network-orgs">Tổ chức mạng</NavLink></nav>
@@ -1055,6 +1056,108 @@ function BoxDetail({ id, onClose, onChanged }) {
   )
 }
 
+function Cartons() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [show, setShow] = useState(false); const [msg, setMsg] = useState(null)
+  const [open, setOpen] = useState(null)
+  const load = () => api.cartons(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (c) => {
+    if (!window.confirm(`Xóa thùng ${c.canNo} và toàn bộ hộp trong thùng?`)) return
+    try { const r = await api.deleteCarton(c.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Đóng thùng / Gán hộp vào thùng</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã thùng / hàng hoá…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setShow(true)}>+ Tạo thùng</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Đóng thùng (GS1 Inv_InventoryGenCarton + Map_BoxInCarton) — cấp cao nhất trong hierarchy Thùng→Hộp→Sản phẩm: gom nhiều hộp (BoxNo) vào một thùng (CanNo) để vận chuyển. Mỗi hộp chỉ được nằm trong một thùng.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã thùng</th><th>Hàng hoá</th><th className="right">Số hộp</th><th>Trạng thái</th><th>Ngày tạo</th><th></th></tr></thead>
+          <tbody>{rows.map(c => (
+            <tr key={c.id}><td style={{ fontFamily: 'monospace' }}>{c.canNo}</td>
+              <td>{c.productCode || '—'}{c.productName ? ` · ${c.productName}` : ''}</td>
+              <td className="right">{c.items}</td>
+              <td><Badge text={c.flagMap ? 'Đã gán hộp' : 'Chưa gán'} css={c.flagMap ? 'success' : 'secondary'} /></td>
+              <td>{fmtDate(c.createdAt)}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setOpen(c.id)}>Xem hộp</button>{' '}
+                <button className="btn gray sm" onClick={() => del(c)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>Chưa có thùng.</td></tr>}</tbody></table>
+      </div>
+      {show && <CartonForm onClose={() => setShow(false)} onSaved={() => { setShow(false); load() }} />}
+      {open && <CartonDetail id={open} onClose={() => setOpen(null)} onChanged={load} />}
+    </>
+  )
+}
+
+function CartonForm({ onClose, onSaved }) {
+  const [f, setF] = useState({ canNo: '', productCode: '', productName: '', remark: '' }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.createCarton(f); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title="Tạo thùng đóng gói" onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã thùng (CanNo) *"><input value={f.canNo} onChange={e => up('canNo', e.target.value)} placeholder="vd: C2601010001" /></Field>
+        <Field label="Mã hàng hoá (ProductCode)"><input value={f.productCode} onChange={e => up('productCode', e.target.value)} placeholder="vd: 8930001001" /></Field></div>
+      <Field label="Tên hàng hoá"><input value={f.productName} onChange={e => up('productName', e.target.value)} /></Field>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mã thùng duy nhất trong tenant.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Tạo thùng</button></div>
+    </Modal>
+  )
+}
+
+function CartonDetail({ id, onClose, onChanged }) {
+  const [c, setC] = useState(null); const [msg, setMsg] = useState(null)
+  const [boxes, setBoxes] = useState([]); const [sel, setSel] = useState([]); const [invCode, setInvCode] = useState('')
+  const load = () => api.carton(id).then(r => setC(r.data))
+  useEffect(() => { load(); api.boxes('').then(r => setBoxes(r.data)) }, [id])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const inCarton = new Set((c?.items || []).map(i => i.boxNo))
+  const toggle = (boxNo) => setSel(sel.includes(boxNo) ? sel.filter(x => x !== boxNo) : [...sel, boxNo])
+  const add = async () => {
+    if (sel.length === 0) { flash(false, 'Chọn ít nhất 1 hộp.'); return }
+    try { const r = await api.addBoxesToCarton(id, { boxNos: sel, invCode }); flash(true, r.data.msg); setSel([]); load(); onChanged() }
+    catch (e) { flash(false, e.message) }
+  }
+  if (!c) return <Modal title="…" onClose={onClose}><p className="muted">Đang tải…</p></Modal>
+  return (
+    <Modal title={`Thùng ${c.canNo}`} onClose={onClose} wide>
+      <Flash msg={msg} />
+      <dl className="dl"><dt>Hàng hoá</dt><dd>{c.productCode || '—'}{c.productName ? ` · ${c.productName}` : ''}</dd>
+        <dt>Số hộp</dt><dd>{c.items.length}</dd><dt>Ghi chú</dt><dd>{c.remark || '—'}</dd></dl>
+      <div className="section-t">Hộp trong thùng ({c.items.length})</div>
+      <div style={{ overflow: 'auto', maxHeight: 220 }}>
+        <table><thead><tr><th>BoxNo</th><th>Hàng hoá</th><th>Vị trí kho</th><th>Trạng thái</th></tr></thead>
+          <tbody>{c.items.map(i => (
+            <tr key={i.id}><td style={{ fontFamily: 'monospace' }}>{i.boxNo}</td><td>{i.productCode || '—'}</td>
+              <td>{i.invCode || '—'}</td><td><Badge text={i.flagActive ? 'Hiệu lực' : 'Ngưng'} css={i.flagActive ? 'success' : 'secondary'} /></td></tr>))}
+            {c.items.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 16 }}>Thùng chưa có hộp.</td></tr>}</tbody></table>
+      </div>
+      <div className="section-t" style={{ marginTop: 14 }}>Gán hộp vào thùng</div>
+      <Field label="Vị trí kho (InvCode)"><input value={invCode} onChange={e => setInvCode(e.target.value)} placeholder="vd: KHO-FG-ST" /></Field>
+      <div style={{ overflow: 'auto', maxHeight: 220, marginTop: 8 }}>
+        <table><thead><tr><th></th><th>BoxNo</th><th>Hàng hoá</th><th>Trạng thái</th></tr></thead>
+          <tbody>{boxes.map(b => {
+            const used = inCarton.has(b.boxNo)
+            return (
+              <tr key={b.id}><td><input type="checkbox" style={{ width: 'auto' }} disabled={used} checked={sel.includes(b.boxNo)} onChange={() => toggle(b.boxNo)} /></td>
+                <td style={{ fontFamily: 'monospace' }}>{b.boxNo}</td><td>{b.productCode || '—'}</td>
+                <td>{used ? <Badge text="Đã trong thùng" css="secondary" /> : <Badge text="Chưa gán" css="success" />}</td></tr>)
+          })}</tbody></table>
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: hộp phải tồn tại trong kho số hộp; mỗi hộp chỉ được nằm trong một thùng.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={add}>Gán {sel.length} hộp vào thùng</button></div>
+    </Modal>
+  )
+}
+
 function QueSyncs() {
   const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
   const load = () => api.queSyncs(q).then(r => setRows(r.data))
@@ -1263,6 +1366,7 @@ export default function App() {
         <Route path="records" element={<Records />} />
         <Route path="stamps" element={<Stamps />} />
         <Route path="boxes" element={<Boxes />} />
+        <Route path="cartons" element={<Cartons />} />
         <Route path="que-syncs" element={<QueSyncs />} />
         <Route path="master-datas" element={<MasterDatas />} />
         <Route path="network-orgs" element={<NetworkOrgs />} />

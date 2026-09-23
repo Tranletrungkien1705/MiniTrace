@@ -424,6 +424,49 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Đóng thùng / gán hộp vào thùng (Inv_InventoryGenCarton + Map_BoxInCarton của InBrandCloud eTEM) =====
+    [HttpGet("cartons")]
+    public async Task<IActionResult> Cartons([FromQuery] string? q)
+        => Ok((await svc.CartonsAsync(q)).Select(c => new
+        {
+            c.Id, c.CanNo, c.QR_CanNo, c.GenTimesNo, c.ProductCode, c.ProductName, c.Remark,
+            c.FlagMap, c.FlagUsed, c.CreatedAt, items = c.Items.Count
+        }));
+
+    [HttpGet("cartons/{id:int}")]
+    public async Task<IActionResult> Carton(int id)
+    {
+        var c = await svc.GetCartonAsync(id);
+        if (c == null) return NotFound(new { error = "Không tìm thấy thùng." });
+        return Ok(new
+        {
+            c.Id, c.CanNo, c.QR_CanNo, c.GenTimesNo, c.ProductCode, c.ProductName, c.Remark,
+            c.FlagMap, c.FlagUsed, c.CreatedAt,
+            items = c.Items.OrderBy(i => i.BoxNo).Select(i => new { i.Id, i.BoxNo, i.ProductCode, i.InvCode, i.FlagActive, i.CreatedAt })
+        });
+    }
+
+    [HttpPost("cartons")]
+    public async Task<IActionResult> CreateCarton([FromBody] CartonReq r)
+    {
+        var (ok, msg) = await svc.CreateCartonAsync(r.CanNo ?? "", r.ProductCode, r.ProductName, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("cartons/{id:int}/boxes")]
+    public async Task<IActionResult> AddBoxesToCarton(int id, [FromBody] CartonBoxesReq r)
+    {
+        var (ok, msg) = await svc.AddBoxesToCartonAsync(id, r.BoxNos ?? [], r.InvCode);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("cartons/{id:int}")]
+    public async Task<IActionResult> DeleteCarton(int id)
+    {
+        var (ok, msg) = await svc.DeleteCartonAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // ===== Hàng đợi đồng bộ dữ liệu truy xuất (MstSv_QueSync của InBrandCloud eTEM) =====
     [HttpGet("que-syncs")]
     public async Task<IActionResult> QueSyncs([FromQuery] string? q)
@@ -552,6 +595,8 @@ public class RecordSpecReq { public string? KdeCode { get; set; } public string?
 public class StampBatchReq { public string? GenTimesNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public int QrType { get; set; } public int Qty { get; set; } public bool FlagPIN { get; set; } public string? ProductionLotNo { get; set; } public string? ProductionDate { get; set; } public string? ShiftInCode { get; set; } public string? UserKCS { get; set; } public string? Remark { get; set; } }
 public class BoxReq { public string? BoxNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public string? Remark { get; set; } }
 public class BoxStampsReq { public List<string>? IdNos { get; set; } public string? InvCode { get; set; } }
+public class CartonReq { public string? CanNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public string? Remark { get; set; } }
+public class CartonBoxesReq { public List<string>? BoxNos { get; set; } public string? InvCode { get; set; } }
 public class QueSyncReq { public int Id { get; set; } public string? NetworkId { get; set; } public string? QueSyncNo { get; set; } public string? TableCode { get; set; } public bool FlagSyncBL { get; set; } public string? Remark { get; set; } }
 public class QueSyncMarkReq { public int Status { get; set; } public string? ErrorDetail { get; set; } }
 public class MasterDataReq { public int Id { get; set; } public string? Code { get; set; } public string? NetworkId { get; set; } public string? TableName { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
