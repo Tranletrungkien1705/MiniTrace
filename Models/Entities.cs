@@ -329,6 +329,70 @@ public class TraceRecordSpec : IOrgOwned
     public TraceRecord Record { get; set; } = null!;
 }
 
+/// <summary>
+/// Loại tem sinh số (GS1 QR Type — TConst.QRType của InBrandCloud eTEM).
+/// PRODID = tem định danh sản phẩm (mỗi tem 1 số), BOX = tem hộp, CARTON = tem thùng, TEM = tem thường.
+/// </summary>
+public enum QrType
+{
+    ProdId = 0,   // PRODID — tem định danh sản phẩm (sinh IDNo/PIN)
+    Box = 1,      // BOX — tem hộp
+    Carton = 2,   // CARTON — tem thùng
+    Tem = 3       // TEM — tem thường
+}
+
+/// <summary>
+/// Lần sinh tem (GS1 Stamp Generation — Inv_GenTimes của InBrandCloud eTEM).
+/// Mỗi lần "chạy số" tem cho một sản phẩm: khai báo loại tem (QRType), số lượng (Qty),
+/// có sinh kèm PIN bí mật hay không (FlagPIN), lô/ngày sản xuất, mẫu in…
+/// Sinh ra một lô số tem (Stamp) tương ứng trong kho số.
+/// </summary>
+public class StampBatch : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string GenTimesNo { get; set; } = "";     // GenTimesNo — mã lần sinh tem (duy nhất trong tenant)
+    public string ProductCode { get; set; } = "";     // ProductCode — mã hàng hoá
+    public string? ProductName { get; set; }           // ProductName — tên hàng hoá
+    public QrType QrType { get; set; } = QrType.ProdId; // QRType — loại tem
+    public string? ConfigDomain { get; set; }           // ConfigDomain — tiền tố mã (ConfigName theo loại tem)
+    public int Qty { get; set; }                        // Qty — số lượng tem sinh ra
+    public bool FlagPIN { get; set; }                   // FlagPIN — 1: sinh kèm PIN, 0: không PIN
+    public bool FlagMap { get; set; }                   // FlagMap — cờ ghép thông tin sản phẩm
+    public string? ProductionLotNo { get; set; }        // ProductionLotNo — lô sản xuất
+    public string? ProductionDate { get; set; }         // ProductionDate — ngày sản xuất
+    public string? ShiftInCode { get; set; }            // ShiftInCode — ca sản xuất
+    public string? UserKCS { get; set; }                // UserKCS — người KCS
+    public string? Remark { get; set; }                 // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public List<Stamp> Stamps { get; set; } = [];
+}
+
+/// <summary>
+/// Số tem trong kho số (GS1 Stamp — Inv_InventoryGenID của InBrandCloud eTEM).
+/// Mỗi dòng = 1 tem đã sinh: IDNo (số định danh), QR_ID (mã in trên tem = tiền tố + IDNo),
+/// PIN (mã bí mật để xác thực), SecretNo, HashInformation (MD5 của "IDNo|PIN" — chống giả),
+/// FlagMap (đã ghép sản phẩm chưa), FlagUsed (đã dùng/in chưa).
+/// </summary>
+public class Stamp : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int BatchId { get; set; }
+    public string IDNo { get; set; } = "";           // IDNo — số định danh tem (duy nhất trong tenant)
+    public string QR_ID { get; set; } = "";           // QR_ID — mã in trên tem (ConfigDomain + IDNo)
+    public string? PIN { get; set; }                   // PIN — mã bí mật (khi FlagPIN)
+    public string? SecretNo { get; set; }              // SecretNo — số bí mật
+    public string? HashInformation { get; set; }       // HashInformation — MD5(IDNo|PIN)
+    public bool FlagMap { get; set; }                  // FlagMap — 0 chưa ghép / 1 đã ghép sản phẩm
+    public bool FlagUsed { get; set; }                 // FlagUsed — 0 chưa dùng / 1 đã dùng
+    public string? Remark { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public StampBatch Batch { get; set; } = null!;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

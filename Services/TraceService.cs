@@ -62,6 +62,12 @@ public interface ITraceService
     Task<TraceRecord?> GetRecordAsync(int id);
     Task<(bool ok, string msg)> SaveRecordAsync(int id, string cteCode, string? glnOrgCode, string? remark, List<RecordSpecInput> specs);
     Task<(bool ok, string msg)> DeleteRecordAsync(int id);
+    // Sinh tem / kho số tem (Inv_GenTimes + Inv_InventoryGenID của InBrandCloud eTEM)
+    Task<List<StampBatch>> StampBatchesAsync(string? q);
+    Task<StampBatch?> GetStampBatchAsync(int id);
+    Task<(bool ok, string msg)> GenerateStampsAsync(string genTimesNo, string productCode, string? productName, QrType qrType, int qty, bool flagPIN, string? productionLotNo, string? productionDate, string? shiftInCode, string? userKCS, string? remark);
+    Task<(bool ok, string msg)> DeleteStampBatchAsync(int id);
+    Task<List<Stamp>> StampsAsync(int? batchId, string? q);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -833,4 +839,106 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
     private static string NewEventNo() => "EV" + DateTime.Now.ToString("yyMMddHHmmss") + Guid.NewGuid().ToString("N")[..4].ToUpperInvariant();
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
+
+    // ===== Sinh tem / kho số tem (Inv_GenTimes + Inv_InventoryGenID của InBrandCloud eTEM) =====
+    // Mỗi lần "chạy số" tem cho 1 sản phẩm → sinh ra Qty số tem (Stamp) trong kho số.
+    // Áp quy tắc InBrandCloud (Inv_GenTimes_AddX_New20211125):
+    //  (1) Cần mã lần sinh (GenTimesNo) + mã hàng hoá (ProductCode).
+    //  (2) Số lượng Qty > 0 và không vượt nQtyMaxGen (100000).
+    //  (3) Mã lần sinh duy nhất trong tenant.
+    //  (4) Tem PRODID + FlagPIN → sinh kèm PIN bí mật và HashInformation = MD5(IDNo|PIN).
+    public async Task<List<StampBatch>> StampBatchesAsync(string? q)
+    {
+        var query = db.StampBatches.Include(b => b.Stamps).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(b => b.GenTimesNo.Contains(q) || b.ProductCode.Contains(q) || (b.ProductName != null && b.ProductName.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(b => b.CreatedAt).Take(500).ToList();
+    }
+
+    public Task<StampBatch?> GetStampBatchAsync(int id) =>
+        db.StampBatches.Include(b => b.Stamps).FirstOrDefaultAsync(b => b.Id == id);
+
+    public async Task<(bool ok, string msg)> GenerateStampsAsync(string genTimesNo, string productCode, string? productName,
+        QrType qrType, int qty, bool flagPIN, string? productionLotNo, string? productionDate, string? shiftInCode, string? userKCS, string? remark)
+    {
+        genTimesNo = (genTimesNo ?? "").Trim();
+        productCode = (productCode ?? "").Trim();
+        // (1) Cần mã lần sinh + mã hàng hoá.
+        if (genTimesNo.Length == 0) return (false, "Cần mã lần sinh tem (GenTimesNo).");
+        if (productCode.Length == 0) return (false, "Cần mã hàng hoá (ProductCode).");
+        // (2) Số lượng hợp lệ.
+        if (qty <= 0) return (false, "Số lượng tem phải lớn hơn 0.");
+        if (qty > 100000) return (false, "Số lượng tem vượt giới hạn 100.000 mỗi lần sinh.");
+        // (3) Mã lần sinh duy nhất trong tenant.
+        if (await db.StampBatches.AnyAsync(b => b.GenTimesNo == genTimesNo)) return (false, $"Mã lần sinh '{genTimesNo}' đã tồn tại.");
+
+        // Tiền tố mã tem theo loại (tương đương ConfigName theo ConfigType của InBrandCloud).
+        var prefix = qrType switch
+        {
+            QrType.Box => "B",
+            QrType.Carton => "C",
+            QrType.Tem => "T",
+            _ => "P"
+        };
+
+        var batch = new StampBatch
+        {
+            GenTimesNo = genTimesNo, ProductCode = productCode,
+            ProductName = string.IsNullOrWhiteSpace(productName) ? null : productName.Trim(),
+            QrType = qrType, ConfigDomain = prefix, Qty = qty, FlagPIN = flagPIN, FlagMap = false,
+            ProductionLotNo = string.IsNullOrWhiteSpace(productionLotNo) ? null : productionLotNo.Trim(),
+            ProductionDate = string.IsNullOrWhiteSpace(productionDate) ? null : productionDate.Trim(),
+            ShiftInCode = string.IsNullOrWhiteSpace(shiftInCode) ? null : shiftInCode.Trim(),
+            UserKCS = string.IsNullOrWhiteSpace(userKCS) ? null : userKCS.Trim(),
+            Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim()
+        };
+        db.StampBatches.Add(batch);
+        await db.SaveChangesAsync();
+
+        // Sinh Qty số tem. IDNo = tiền tố + số thứ tự 6 chữ số (tương đương Seq_GenObjCode).
+        var stamps = new List<Stamp>(qty);
+        for (int i = 1; i <= qty; i++)
+        {
+            var idNo = $"{prefix}{i:D6}";
+            var pin = flagPIN && qrType == QrType.ProdId ? NewPin() : null;
+            stamps.Add(new Stamp
+            {
+                BatchId = batch.Id, IDNo = idNo, QR_ID = idNo, SecretNo = idNo,
+                PIN = pin, HashInformation = pin == null ? null : Md5($"{idNo}|{pin}"),
+                FlagMap = false, FlagUsed = false
+            });
+        }
+        db.Stamps.AddRange(stamps);
+        await db.SaveChangesAsync();
+        return (true, $"Đã sinh {qty} tem cho '{productCode}' (lần sinh {genTimesNo}).");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteStampBatchAsync(int id)
+    {
+        var batch = await db.StampBatches.Include(b => b.Stamps).FirstOrDefaultAsync(b => b.Id == id);
+        if (batch == null) return (false, "Không tìm thấy lần sinh tem.");
+        db.Stamps.RemoveRange(batch.Stamps);
+        db.StampBatches.Remove(batch);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa lần sinh tem và toàn bộ số tem.");
+    }
+
+    public async Task<List<Stamp>> StampsAsync(int? batchId, string? q)
+    {
+        var query = db.Stamps.AsQueryable();
+        if (batchId.HasValue) query = query.Where(s => s.BatchId == batchId.Value);
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(s => s.IDNo.Contains(q) || s.QR_ID.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(s => s.IDNo).Take(1000).ToList();
+    }
+
+    // PIN bí mật 8 ký tự (tương đương Seq_GenPIN_GetX của InBrandCloud).
+    private static string NewPin() => Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+
+    // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 — chống giả tem).
+    private static string Md5(string input)
+    {
+        var bytes = System.Security.Cryptography.MD5.HashData(System.Text.Encoding.ASCII.GetBytes(input));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 }

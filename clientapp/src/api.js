@@ -51,7 +51,12 @@ export const api = {
   records: (q) => req(`/records${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   record: (id) => req(`/records/${id}`),
   saveRecord: (b) => req('/records', { method: 'POST', body: b }),
-  deleteRecord: (id) => req(`/records/${id}`, { method: 'DELETE' })
+  deleteRecord: (id) => req(`/records/${id}`, { method: 'DELETE' }),
+  stampBatches: (q) => req(`/stamp-batches${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  stampBatch: (id) => req(`/stamp-batches/${id}`),
+  generateStamps: (b) => req('/stamp-batches', { method: 'POST', body: b }),
+  deleteStampBatch: (id) => req(`/stamp-batches/${id}`, { method: 'DELETE' }),
+  stamps: (batchId, q) => req(`/stamps?${batchId ? `batchId=${batchId}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`)
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

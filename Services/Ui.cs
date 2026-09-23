@@ -32,4 +32,13 @@ public static class Ui
         TplNwtStatus.Cancel => ("Đã hủy", "secondary", "bi-x-circle"),
         _ => (s.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) Qr(QrType t) => t switch
+    {
+        QrType.ProdId => ("Tem sản phẩm", "primary", "bi-qr-code"),
+        QrType.Box => ("Tem hộp", "info", "bi-box"),
+        QrType.Carton => ("Tem thùng", "warning", "bi-boxes"),
+        QrType.Tem => ("Tem thường", "secondary", "bi-tag"),
+        _ => (t.ToString(), "secondary", "bi-dot")
+    };
 }

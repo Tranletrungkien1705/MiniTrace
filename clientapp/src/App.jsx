@@ -28,7 +28,8 @@ function Layout() {
         <NavLink to="/org-glns">Tổ chức ↔ Địa điểm</NavLink>
         <NavLink to="/templates">Mẫu loại tổ chức</NavLink>
         <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink>
-        <NavLink to="/records">Sự kiện truy xuất</NavLink></nav>
+        <NavLink to="/records">Sự kiện truy xuất</NavLink>
+        <NavLink to="/stamps">Sinh tem</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -858,6 +859,96 @@ function RecordForm({ rec, onClose, onSaved }) {
   )
 }
 
+const QR_TYPES = ['Tem sản phẩm', 'Tem hộp', 'Tem thùng', 'Tem thường']
+
+function Stamps() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [show, setShow] = useState(false); const [msg, setMsg] = useState(null)
+  const [open, setOpen] = useState(null)
+  const load = () => api.stampBatches(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (b) => {
+    if (!window.confirm(`Xóa lần sinh tem ${b.genTimesNo} và toàn bộ số tem?`)) return
+    try { const r = await api.deleteStampBatch(b.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Sinh tem / Kho số tem</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã lần sinh / hàng hoá…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setShow(true)}>+ Sinh tem</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Sinh tem / kho số tem (GS1 Inv_GenTimes + Inv_InventoryGenID) — mỗi lần "chạy số" tem cho một sản phẩm sinh ra một lô số tem (IDNo/QR_ID/PIN/HashInformation) để in và gắn lên sản phẩm.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã lần sinh</th><th>Hàng hoá</th><th>Loại tem</th><th className="right">Số lượng</th><th>PIN</th><th>Lô SX</th><th>Ngày tạo</th><th></th></tr></thead>
+          <tbody>{rows.map(b => (
+            <tr key={b.id}><td style={{ fontFamily: 'monospace' }}>{b.genTimesNo}</td>
+              <td>{b.productCode}{b.productName ? ` · ${b.productName}` : ''}</td>
+              <td><Badge text={b.qrTypeText} css={b.css} /></td><td className="right">{b.qty}</td>
+              <td>{b.flagPIN ? <Badge text="Có PIN" css="info" /> : <span className="muted">—</span>}</td>
+              <td>{b.productionLotNo || '—'}</td><td>{fmtDate(b.createdAt)}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setOpen(b.id)}>Xem tem</button>{' '}
+                <button className="btn gray sm" onClick={() => del(b)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>Chưa có lần sinh tem.</td></tr>}</tbody></table>
+      </div>
+      {show && <StampForm onClose={() => setShow(false)} onSaved={() => { setShow(false); load() }} />}
+      {open && <StampList id={open} onClose={() => setOpen(null)} />}
+    </>
+  )
+}
+
+function StampForm({ onClose, onSaved }) {
+  const [f, setF] = useState({ genTimesNo: '', productCode: '', productName: '', qrType: 0, qty: 10, flagPIN: true, productionLotNo: '', productionDate: '', shiftInCode: '', userKCS: '', remark: '' })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.generateStamps({ ...f, qrType: Number(f.qrType), qty: Number(f.qty) }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title="Sinh tem (chạy số tem)" onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã lần sinh (GenTimesNo) *"><input value={f.genTimesNo} onChange={e => up('genTimesNo', e.target.value)} placeholder="vd: GT2601010001" /></Field>
+        <Field label="Loại tem (QRType)"><select value={f.qrType} onChange={e => up('qrType', e.target.value)}>
+          {QR_TYPES.map((t, i) => <option key={i} value={i}>{t}</option>)}</select></Field></div>
+      <div className="row"><Field label="Mã hàng hoá (ProductCode) *"><input value={f.productCode} onChange={e => up('productCode', e.target.value)} placeholder="vd: 8930001001" /></Field>
+        <Field label="Tên hàng hoá"><input value={f.productName} onChange={e => up('productName', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Số lượng tem (Qty) *"><input type="number" value={f.qty} onChange={e => up('qty', e.target.value)} /></Field>
+        <Field label="Lô sản xuất"><input value={f.productionLotNo} onChange={e => up('productionLotNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Ngày sản xuất"><input value={f.productionDate} onChange={e => up('productionDate', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Ca sản xuất"><input value={f.shiftInCode} onChange={e => up('shiftInCode', e.target.value)} /></Field>
+        <Field label="Người KCS"><input value={f.userKCS} onChange={e => up('userKCS', e.target.value)} /></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagPIN} onChange={e => up('flagPIN', e.target.checked)} /> Sinh kèm PIN bí mật (chỉ tem sản phẩm)</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mã lần sinh duy nhất; số lượng 1–100.000; tem sản phẩm + PIN sẽ sinh HashInformation = MD5(IDNo|PIN) để chống giả.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Sinh tem</button></div>
+    </Modal>
+  )
+}
+
+function StampList({ id, onClose }) {
+  const [b, setB] = useState(null)
+  useEffect(() => { api.stampBatch(id).then(r => setB(r.data)) }, [id])
+  if (!b) return <Modal title="…" onClose={onClose}><p className="muted">Đang tải…</p></Modal>
+  return (
+    <Modal title={`Số tem — ${b.genTimesNo}`} onClose={onClose} wide>
+      <dl className="dl"><dt>Hàng hoá</dt><dd>{b.productCode}{b.productName ? ` · ${b.productName}` : ''}</dd>
+        <dt>Loại tem</dt><dd>{b.qrTypeText}</dd><dt>Số lượng</dt><dd>{b.qty}</dd>
+        <dt>Lô SX</dt><dd>{b.productionLotNo || '—'}</dd><dt>Ngày SX</dt><dd>{b.productionDate || '—'}</dd></dl>
+      <div className="section-t">Danh sách tem ({b.stamps.length})</div>
+      <div style={{ overflow: 'auto', maxHeight: 360 }}>
+        <table><thead><tr><th>IDNo</th><th>QR_ID</th><th>PIN</th><th>HashInformation</th><th>Trạng thái</th></tr></thead>
+          <tbody>{b.stamps.map(s => (
+            <tr key={s.idNo}><td style={{ fontFamily: 'monospace' }}>{s.idNo}</td><td style={{ fontFamily: 'monospace' }}>{s.qrId}</td>
+              <td style={{ fontFamily: 'monospace' }}>{s.pin || '—'}</td><td className="muted" style={{ fontFamily: 'monospace', fontSize: 11 }}>{s.hashInformation || '—'}</td>
+              <td><Badge text={s.flagUsed ? 'Đã dùng' : 'Chưa dùng'} css={s.flagUsed ? 'secondary' : 'success'} /></td></tr>))}</tbody></table>
+      </div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -876,6 +967,7 @@ export default function App() {
         <Route path="templates" element={<Templates />} />
         <Route path="tpl-view-events" element={<TplViewEvents />} />
         <Route path="records" element={<Records />} />
+        <Route path="stamps" element={<Stamps />} />
       </Route>
     </Routes>
   )

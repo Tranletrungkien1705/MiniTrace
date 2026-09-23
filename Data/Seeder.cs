@@ -216,13 +216,44 @@ public static class Seeder
                 new TraceRecordSpec { RecordId = rec2.Id, CteCode = "QUALITY_CHECK", KdeCode = "QUALITY_RESULT", KdeValue = "Đạt", FlagKey = true, FlagList = true });
             await db.SaveChangesAsync();
         }
+
+        // Sinh tem / kho số tem (Inv_GenTimes + Inv_InventoryGenID của InBrandCloud eTEM) — lần sinh tem mẫu.
+        if (!await db.StampBatches.AnyAsync())
+        {
+            var batch = new StampBatch
+            {
+                GenTimesNo = "GT2601010001", ProductCode = "8930001001", ProductName = "Gạo ST25 túi 5kg",
+                QrType = QrType.ProdId, ConfigDomain = "P", Qty = 5, FlagPIN = true, FlagMap = false,
+                ProductionLotNo = "L2026-001", ProductionDate = "2026-01-05", ShiftInCode = "CA1", UserKCS = "Nguyễn Văn KCS",
+                Remark = "Lần sinh tem mẫu cho lô ST25"
+            };
+            db.StampBatches.Add(batch); await db.SaveChangesAsync();
+            for (int i = 1; i <= 5; i++)
+            {
+                var idNo = $"P{i:D6}";
+                var pin = $"PIN{i:D5}";
+                db.Stamps.Add(new Stamp
+                {
+                    BatchId = batch.Id, IDNo = idNo, QR_ID = idNo, SecretNo = idNo, PIN = pin,
+                    HashInformation = Md5($"{idNo}|{pin}"), FlagMap = false, FlagUsed = false
+                });
+            }
+            await db.SaveChangesAsync();
+        }
+    }
+
+    // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
+    private static string Md5(string input)
+    {
+        var bytes = System.Security.Cryptography.MD5.HashData(System.Text.Encoding.ASCII.GetBytes(input));
+        return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
     private static async Task MigratePostgresAsync(AppDbContext db)
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

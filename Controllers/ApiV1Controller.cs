@@ -336,6 +336,51 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Sinh tem / kho số tem (Inv_GenTimes + Inv_InventoryGenID của InBrandCloud eTEM) =====
+    [HttpGet("stamp-batches")]
+    public async Task<IActionResult> StampBatches([FromQuery] string? q)
+        => Ok((await svc.StampBatchesAsync(q)).Select(b => new
+        {
+            b.Id, b.GenTimesNo, b.ProductCode, b.ProductName,
+            qrType = (int)b.QrType, qrTypeText = Ui.Qr(b.QrType).text, css = Ui.Qr(b.QrType).css,
+            b.ConfigDomain, b.Qty, b.FlagPIN, b.FlagMap, b.ProductionLotNo, b.ProductionDate,
+            b.ShiftInCode, b.UserKCS, b.Remark, b.CreatedAt, stamps = b.Stamps.Count
+        }));
+
+    [HttpGet("stamp-batches/{id:int}")]
+    public async Task<IActionResult> StampBatch(int id)
+    {
+        var b = await svc.GetStampBatchAsync(id);
+        if (b == null) return NotFound(new { error = "Không tìm thấy lần sinh tem." });
+        return Ok(new
+        {
+            b.Id, b.GenTimesNo, b.ProductCode, b.ProductName,
+            qrType = (int)b.QrType, qrTypeText = Ui.Qr(b.QrType).text,
+            b.ConfigDomain, b.Qty, b.FlagPIN, b.FlagMap, b.ProductionLotNo, b.ProductionDate,
+            b.ShiftInCode, b.UserKCS, b.Remark, b.CreatedAt,
+            stamps = b.Stamps.OrderBy(s => s.IDNo).Select(s => new { s.IDNo, s.QR_ID, s.PIN, s.SecretNo, s.HashInformation, s.FlagMap, s.FlagUsed })
+        });
+    }
+
+    [HttpPost("stamp-batches")]
+    public async Task<IActionResult> GenerateStamps([FromBody] StampBatchReq r)
+    {
+        var (ok, msg) = await svc.GenerateStampsAsync(r.GenTimesNo ?? "", r.ProductCode ?? "", r.ProductName,
+            (QrType)r.QrType, r.Qty, r.FlagPIN, r.ProductionLotNo, r.ProductionDate, r.ShiftInCode, r.UserKCS, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("stamp-batches/{id:int}")]
+    public async Task<IActionResult> DeleteStampBatch(int id)
+    {
+        var (ok, msg) = await svc.DeleteStampBatchAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpGet("stamps")]
+    public async Task<IActionResult> Stamps([FromQuery] int? batchId, [FromQuery] string? q)
+        => Ok((await svc.StampsAsync(batchId, q)).Select(s => new { s.Id, s.BatchId, s.IDNo, s.QR_ID, s.PIN, s.SecretNo, s.HashInformation, s.FlagMap, s.FlagUsed, s.CreatedAt }));
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -379,4 +424,5 @@ public class TplCteKdeItemReq { public string? CteCode { get; set; } public stri
 public class TplViewEventReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? Detail { get; set; } public string? CteCode { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; public bool FlagBG { get; set; } }
 public class RecordReq { public int Id { get; set; } public string? CteCode { get; set; } public string? GlnOrgCode { get; set; } public string? Remark { get; set; } public List<RecordSpecReq>? Specs { get; set; } }
 public class RecordSpecReq { public string? KdeCode { get; set; } public string? KdeValue { get; set; } }
+public class StampBatchReq { public string? GenTimesNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public int QrType { get; set; } public int Qty { get; set; } public bool FlagPIN { get; set; } public string? ProductionLotNo { get; set; } public string? ProductionDate { get; set; } public string? ShiftInCode { get; set; } public string? UserKCS { get; set; } public string? Remark { get; set; } }
 
