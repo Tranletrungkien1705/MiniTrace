@@ -393,6 +393,48 @@ public class Stamp : IOrgOwned
     public StampBatch Batch { get; set; } = null!;
 }
 
+/// <summary>
+/// Hộp đóng gói (GS1 Box — Inv_InventoryGenBox của InBrandCloud eTEM).
+/// Một hộp gom nhiều tem sản phẩm (IDNo) lại thành một đơn vị đóng gói để vận chuyển.
+/// BoxNo là mã hộp (duy nhất trong tenant), QR_BoxNo là mã in trên tem hộp.
+/// </summary>
+public class Box : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string BoxNo { get; set; } = "";          // BoxNo — mã hộp (duy nhất trong tenant)
+    public string QR_BoxNo { get; set; } = "";        // QR_BoxNo — mã in trên tem hộp
+    public string? GenTimesNo { get; set; }            // GenTimesNo — lần sinh số hộp
+    public string? ProductCode { get; set; }           // ProductCode — mã chủng loại SP
+    public string? ProductName { get; set; }           // ProductName — tên chủng loại SP
+    public string? Remark { get; set; }                // Remark — ghi chú
+    public bool FlagMap { get; set; }                  // FlagMap — 0 chưa gán tem / 1 đã gán tem
+    public bool FlagUsed { get; set; }                 // FlagUsed — 0 chưa dùng / 1 đã dùng
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public List<BoxItem> Items { get; set; } = [];
+}
+
+/// <summary>
+/// Ánh xạ tem sản phẩm vào hộp (GS1 Map_IDInBox của InBrandCloud eTEM).
+/// Mỗi dòng = 1 tem (IDNo) được gán vào 1 hộp (BoxNo). Quy tắc: tem phải tồn tại
+/// trong kho số tem và chỉ được nằm trong MỘT hộp (chống gán trùng).
+/// </summary>
+public class BoxItem : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int BoxId { get; set; }
+    public string BoxNo { get; set; } = "";          // BoxNo — mã hộp
+    public string IDNo { get; set; } = "";            // IDNo — số định danh tem sản phẩm
+    public string? ProductCode { get; set; }           // ProductCode — mã chủng loại SP
+    public string? InvCode { get; set; }               // InvCode — vị trí kho
+    public bool FlagActive { get; set; } = true;       // FlagActive — đang hiệu lực
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public Box Box { get; set; } = null!;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

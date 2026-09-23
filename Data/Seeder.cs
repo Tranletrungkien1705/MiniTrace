@@ -240,6 +240,23 @@ public static class Seeder
             }
             await db.SaveChangesAsync();
         }
+
+        // Đóng hộp / gán tem vào hộp (Inv_InventoryGenBox + Map_IDInBox của InBrandCloud eTEM) — hộp mẫu gom 3 tem.
+        if (!await db.Boxes.AnyAsync())
+        {
+            var box = new Box
+            {
+                BoxNo = "B2601010001", QR_BoxNo = "B2601010001", GenTimesNo = "GT2601010001",
+                ProductCode = "8930001001", ProductName = "Gạo ST25 túi 5kg",
+                Remark = "Hộp mẫu gom 3 tem sản phẩm", FlagMap = true, FlagUsed = false
+            };
+            db.Boxes.Add(box); await db.SaveChangesAsync();
+            db.BoxItems.AddRange(
+                new BoxItem { BoxId = box.Id, BoxNo = box.BoxNo, IDNo = "P000001", ProductCode = "8930001001", InvCode = "KHO-FG-ST", FlagActive = true },
+                new BoxItem { BoxId = box.Id, BoxNo = box.BoxNo, IDNo = "P000002", ProductCode = "8930001001", InvCode = "KHO-FG-ST", FlagActive = true },
+                new BoxItem { BoxId = box.Id, BoxNo = box.BoxNo, IDNo = "P000003", ProductCode = "8930001001", InvCode = "KHO-FG-ST", FlagActive = true });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -253,7 +270,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

@@ -29,7 +29,8 @@ function Layout() {
         <NavLink to="/templates">Mẫu loại tổ chức</NavLink>
         <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink>
         <NavLink to="/records">Sự kiện truy xuất</NavLink>
-        <NavLink to="/stamps">Sinh tem</NavLink></nav>
+        <NavLink to="/stamps">Sinh tem</NavLink>
+        <NavLink to="/boxes">Đóng hộp</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -949,6 +950,108 @@ function StampList({ id, onClose }) {
   )
 }
 
+function Boxes() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [show, setShow] = useState(false); const [msg, setMsg] = useState(null)
+  const [open, setOpen] = useState(null)
+  const load = () => api.boxes(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (b) => {
+    if (!window.confirm(`Xóa hộp ${b.boxNo} và toàn bộ tem trong hộp?`)) return
+    try { const r = await api.deleteBox(b.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Đóng hộp / Gán tem vào hộp</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã hộp / hàng hoá…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setShow(true)}>+ Tạo hộp</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Đóng hộp (GS1 Inv_InventoryGenBox + Map_IDInBox) — gom nhiều tem sản phẩm (IDNo) vào một hộp (BoxNo) để đóng gói vận chuyển. Mỗi tem chỉ được nằm trong một hộp.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã hộp</th><th>Hàng hoá</th><th className="right">Số tem</th><th>Trạng thái</th><th>Ngày tạo</th><th></th></tr></thead>
+          <tbody>{rows.map(b => (
+            <tr key={b.id}><td style={{ fontFamily: 'monospace' }}>{b.boxNo}</td>
+              <td>{b.productCode || '—'}{b.productName ? ` · ${b.productName}` : ''}</td>
+              <td className="right">{b.items}</td>
+              <td><Badge text={b.flagMap ? 'Đã gán tem' : 'Chưa gán'} css={b.flagMap ? 'success' : 'secondary'} /></td>
+              <td>{fmtDate(b.createdAt)}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setOpen(b.id)}>Xem tem</button>{' '}
+                <button className="btn gray sm" onClick={() => del(b)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>Chưa có hộp.</td></tr>}</tbody></table>
+      </div>
+      {show && <BoxForm onClose={() => setShow(false)} onSaved={() => { setShow(false); load() }} />}
+      {open && <BoxDetail id={open} onClose={() => setOpen(null)} onChanged={load} />}
+    </>
+  )
+}
+
+function BoxForm({ onClose, onSaved }) {
+  const [f, setF] = useState({ boxNo: '', productCode: '', productName: '', remark: '' }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.createBox(f); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title="Tạo hộp đóng gói" onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã hộp (BoxNo) *"><input value={f.boxNo} onChange={e => up('boxNo', e.target.value)} placeholder="vd: B2601010001" /></Field>
+        <Field label="Mã hàng hoá (ProductCode)"><input value={f.productCode} onChange={e => up('productCode', e.target.value)} placeholder="vd: 8930001001" /></Field></div>
+      <Field label="Tên hàng hoá"><input value={f.productName} onChange={e => up('productName', e.target.value)} /></Field>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mã hộp duy nhất trong tenant.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Tạo hộp</button></div>
+    </Modal>
+  )
+}
+
+function BoxDetail({ id, onClose, onChanged }) {
+  const [b, setB] = useState(null); const [msg, setMsg] = useState(null)
+  const [stamps, setStamps] = useState([]); const [sel, setSel] = useState([]); const [invCode, setInvCode] = useState('')
+  const load = () => api.box(id).then(r => setB(r.data))
+  useEffect(() => { load(); api.stamps(null, '').then(r => setStamps(r.data)) }, [id])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const inBox = new Set((b?.items || []).map(i => i.idNo))
+  const toggle = (idNo) => setSel(sel.includes(idNo) ? sel.filter(x => x !== idNo) : [...sel, idNo])
+  const add = async () => {
+    if (sel.length === 0) { flash(false, 'Chọn ít nhất 1 tem.'); return }
+    try { const r = await api.addStampsToBox(id, { idNos: sel, invCode }); flash(true, r.data.msg); setSel([]); load(); onChanged() }
+    catch (e) { flash(false, e.message) }
+  }
+  if (!b) return <Modal title="…" onClose={onClose}><p className="muted">Đang tải…</p></Modal>
+  return (
+    <Modal title={`Hộp ${b.boxNo}`} onClose={onClose} wide>
+      <Flash msg={msg} />
+      <dl className="dl"><dt>Hàng hoá</dt><dd>{b.productCode || '—'}{b.productName ? ` · ${b.productName}` : ''}</dd>
+        <dt>Số tem</dt><dd>{b.items.length}</dd><dt>Ghi chú</dt><dd>{b.remark || '—'}</dd></dl>
+      <div className="section-t">Tem trong hộp ({b.items.length})</div>
+      <div style={{ overflow: 'auto', maxHeight: 220 }}>
+        <table><thead><tr><th>IDNo</th><th>Hàng hoá</th><th>Vị trí kho</th><th>Trạng thái</th></tr></thead>
+          <tbody>{b.items.map(i => (
+            <tr key={i.id}><td style={{ fontFamily: 'monospace' }}>{i.idNo}</td><td>{i.productCode || '—'}</td>
+              <td>{i.invCode || '—'}</td><td><Badge text={i.flagActive ? 'Hiệu lực' : 'Ngưng'} css={i.flagActive ? 'success' : 'secondary'} /></td></tr>))}
+            {b.items.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 16 }}>Hộp chưa có tem.</td></tr>}</tbody></table>
+      </div>
+      <div className="section-t" style={{ marginTop: 14 }}>Gán tem vào hộp</div>
+      <Field label="Vị trí kho (InvCode)"><input value={invCode} onChange={e => setInvCode(e.target.value)} placeholder="vd: KHO-FG-ST" /></Field>
+      <div style={{ overflow: 'auto', maxHeight: 220, marginTop: 8 }}>
+        <table><thead><tr><th></th><th>IDNo</th><th>QR_ID</th><th>Trạng thái</th></tr></thead>
+          <tbody>{stamps.map(s => {
+            const used = inBox.has(s.idNo)
+            return (
+              <tr key={s.id}><td><input type="checkbox" style={{ width: 'auto' }} disabled={used} checked={sel.includes(s.idNo)} onChange={() => toggle(s.idNo)} /></td>
+                <td style={{ fontFamily: 'monospace' }}>{s.idNo}</td><td style={{ fontFamily: 'monospace' }}>{s.qrId}</td>
+                <td>{used ? <Badge text="Đã trong hộp" css="secondary" /> : <Badge text="Chưa gán" css="success" />}</td></tr>)
+          })}</tbody></table>
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: tem phải tồn tại trong kho số tem; mỗi tem chỉ được nằm trong một hộp.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={add}>Gán {sel.length} tem vào hộp</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -968,6 +1071,7 @@ export default function App() {
         <Route path="tpl-view-events" element={<TplViewEvents />} />
         <Route path="records" element={<Records />} />
         <Route path="stamps" element={<Stamps />} />
+        <Route path="boxes" element={<Boxes />} />
       </Route>
     </Routes>
   )

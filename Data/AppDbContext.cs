@@ -29,6 +29,8 @@ public class AppDbContext : DbContext
     public DbSet<TraceRecordSpec> RecordSpecs => Set<TraceRecordSpec>();
     public DbSet<StampBatch> StampBatches => Set<StampBatch>();
     public DbSet<Stamp> Stamps => Set<Stamp>();
+    public DbSet<Box> Boxes => Set<Box>();
+    public DbSet<BoxItem> BoxItems => Set<BoxItem>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -136,6 +138,17 @@ public class AppDbContext : DbContext
         {
             e.HasOne(x => x.Batch).WithMany(x => x.Stamps).HasForeignKey(x => x.BatchId);
             e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<Box>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.BoxNo }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<BoxItem>(e =>
+        {
+            e.HasOne(x => x.Box).WithMany(x => x.Items).HasForeignKey(x => x.BoxId);
+            e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();   // mỗi tem chỉ nằm trong 1 hộp
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

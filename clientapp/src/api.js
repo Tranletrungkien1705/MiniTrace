@@ -56,7 +56,12 @@ export const api = {
   stampBatch: (id) => req(`/stamp-batches/${id}`),
   generateStamps: (b) => req('/stamp-batches', { method: 'POST', body: b }),
   deleteStampBatch: (id) => req(`/stamp-batches/${id}`, { method: 'DELETE' }),
-  stamps: (batchId, q) => req(`/stamps?${batchId ? `batchId=${batchId}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`)
+  stamps: (batchId, q) => req(`/stamps?${batchId ? `batchId=${batchId}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`),
+  boxes: (q) => req(`/boxes${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  box: (id) => req(`/boxes/${id}`),
+  createBox: (b) => req('/boxes', { method: 'POST', body: b }),
+  addStampsToBox: (id, b) => req(`/boxes/${id}/stamps`, { method: 'POST', body: b }),
+  deleteBox: (id) => req(`/boxes/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

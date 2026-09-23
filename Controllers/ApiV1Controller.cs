@@ -381,6 +381,49 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
     public async Task<IActionResult> Stamps([FromQuery] int? batchId, [FromQuery] string? q)
         => Ok((await svc.StampsAsync(batchId, q)).Select(s => new { s.Id, s.BatchId, s.IDNo, s.QR_ID, s.PIN, s.SecretNo, s.HashInformation, s.FlagMap, s.FlagUsed, s.CreatedAt }));
 
+    // ===== Đóng hộp / gán tem vào hộp (Inv_InventoryGenBox + Map_IDInBox của InBrandCloud eTEM) =====
+    [HttpGet("boxes")]
+    public async Task<IActionResult> Boxes([FromQuery] string? q)
+        => Ok((await svc.BoxesAsync(q)).Select(b => new
+        {
+            b.Id, b.BoxNo, b.QR_BoxNo, b.GenTimesNo, b.ProductCode, b.ProductName, b.Remark,
+            b.FlagMap, b.FlagUsed, b.CreatedAt, items = b.Items.Count
+        }));
+
+    [HttpGet("boxes/{id:int}")]
+    public async Task<IActionResult> Box(int id)
+    {
+        var b = await svc.GetBoxAsync(id);
+        if (b == null) return NotFound(new { error = "Không tìm thấy hộp." });
+        return Ok(new
+        {
+            b.Id, b.BoxNo, b.QR_BoxNo, b.GenTimesNo, b.ProductCode, b.ProductName, b.Remark,
+            b.FlagMap, b.FlagUsed, b.CreatedAt,
+            items = b.Items.OrderBy(i => i.IDNo).Select(i => new { i.Id, i.IDNo, i.ProductCode, i.InvCode, i.FlagActive, i.CreatedAt })
+        });
+    }
+
+    [HttpPost("boxes")]
+    public async Task<IActionResult> CreateBox([FromBody] BoxReq r)
+    {
+        var (ok, msg) = await svc.CreateBoxAsync(r.BoxNo ?? "", r.ProductCode, r.ProductName, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("boxes/{id:int}/stamps")]
+    public async Task<IActionResult> AddStampsToBox(int id, [FromBody] BoxStampsReq r)
+    {
+        var (ok, msg) = await svc.AddStampsToBoxAsync(id, r.IdNos ?? [], r.InvCode);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("boxes/{id:int}")]
+    public async Task<IActionResult> DeleteBox(int id)
+    {
+        var (ok, msg) = await svc.DeleteBoxAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -425,4 +468,6 @@ public class TplViewEventReq { public int Id { get; set; } public string? Code {
 public class RecordReq { public int Id { get; set; } public string? CteCode { get; set; } public string? GlnOrgCode { get; set; } public string? Remark { get; set; } public List<RecordSpecReq>? Specs { get; set; } }
 public class RecordSpecReq { public string? KdeCode { get; set; } public string? KdeValue { get; set; } }
 public class StampBatchReq { public string? GenTimesNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public int QrType { get; set; } public int Qty { get; set; } public bool FlagPIN { get; set; } public string? ProductionLotNo { get; set; } public string? ProductionDate { get; set; } public string? ShiftInCode { get; set; } public string? UserKCS { get; set; } public string? Remark { get; set; } }
+public class BoxReq { public string? BoxNo { get; set; } public string? ProductCode { get; set; } public string? ProductName { get; set; } public string? Remark { get; set; } }
+public class BoxStampsReq { public List<string>? IdNos { get; set; } public string? InvCode { get; set; } }
 

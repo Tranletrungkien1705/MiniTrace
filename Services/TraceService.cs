@@ -68,6 +68,12 @@ public interface ITraceService
     Task<(bool ok, string msg)> GenerateStampsAsync(string genTimesNo, string productCode, string? productName, QrType qrType, int qty, bool flagPIN, string? productionLotNo, string? productionDate, string? shiftInCode, string? userKCS, string? remark);
     Task<(bool ok, string msg)> DeleteStampBatchAsync(int id);
     Task<List<Stamp>> StampsAsync(int? batchId, string? q);
+    // Đóng hộp / gán tem vào hộp (Inv_InventoryGenBox + Map_IDInBox của InBrandCloud eTEM)
+    Task<List<Box>> BoxesAsync(string? q);
+    Task<Box?> GetBoxAsync(int id);
+    Task<(bool ok, string msg)> CreateBoxAsync(string boxNo, string? productCode, string? productName, string? remark);
+    Task<(bool ok, string msg)> AddStampsToBoxAsync(int boxId, List<string> idNos, string? invCode);
+    Task<(bool ok, string msg)> DeleteBoxAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -91,6 +97,9 @@ public record RecordSpecInput(string KdeCode, string? KdeValue);
 
 /// <summary>1 dòng ánh xạ tổ chức↔địa điểm đã join sang GLN (tương đương Mst_OrgIDMapGLN + Mst_GLN).</summary>
 public record OrgGlnView(int Id, string OrgCode, string GlnCode, string? GlnName, string? GpsLat, string? GpsLong, string? Remark, DateTime CreatedAt);
+
+/// <summary>1 tem trong hộp (tương đương 1 dòng Map_IDInBox).</summary>
+public record BoxItemView(int Id, string IDNo, string? ProductCode, string? InvCode, bool FlagActive, DateTime CreatedAt);
 
 public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
@@ -940,5 +949,81 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
     {
         var bytes = System.Security.Cryptography.MD5.HashData(System.Text.Encoding.ASCII.GetBytes(input));
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    // ===== Đóng hộp / gán tem vào hộp (Inv_InventoryGenBox + Map_IDInBox của InBrandCloud eTEM) =====
+    // Gom nhiều tem sản phẩm (IDNo) vào một hộp (BoxNo) để đóng gói vận chuyển.
+    public async Task<List<Box>> BoxesAsync(string? q)
+    {
+        var query = db.Boxes.Include(b => b.Items).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(b => b.BoxNo.Contains(q) || (b.ProductCode != null && b.ProductCode.Contains(q)) || (b.ProductName != null && b.ProductName.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(b => b.CreatedAt).Take(500).ToList();
+    }
+
+    public Task<Box?> GetBoxAsync(int id) =>
+        db.Boxes.Include(b => b.Items).FirstOrDefaultAsync(b => b.Id == id);
+
+    // Tạo hộp mới. Áp quy tắc InBrandCloud (Inv_InventoryGenBox): cần mã hộp (BoxNo) duy nhất trong tenant.
+    public async Task<(bool ok, string msg)> CreateBoxAsync(string boxNo, string? productCode, string? productName, string? remark)
+    {
+        boxNo = (boxNo ?? "").Trim();
+        if (boxNo.Length == 0) return (false, "Cần mã hộp (BoxNo).");
+        if (await db.Boxes.AnyAsync(b => b.BoxNo == boxNo)) return (false, $"Mã hộp '{boxNo}' đã tồn tại.");
+
+        db.Boxes.Add(new Box
+        {
+            BoxNo = boxNo, QR_BoxNo = boxNo,
+            ProductCode = string.IsNullOrWhiteSpace(productCode) ? null : productCode.Trim(),
+            ProductName = string.IsNullOrWhiteSpace(productName) ? null : productName.Trim(),
+            Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim(),
+            FlagMap = false, FlagUsed = false
+        });
+        await db.SaveChangesAsync();
+        return (true, $"Đã tạo hộp '{boxNo}'.");
+    }
+
+    // Gán danh sách tem (IDNo) vào hộp. Áp quy tắc InBrandCloud (Map_IDInBox_AddX_New20211125):
+    //  (1) Hộp phải tồn tại.
+    //  (2) Mọi IDNo phải tồn tại trong kho số tem (Inv_InventoryGenID).
+    //  (3) Mỗi tem chỉ được nằm trong MỘT hộp (chống gán trùng).
+    public async Task<(bool ok, string msg)> AddStampsToBoxAsync(int boxId, List<string> idNos, string? invCode)
+    {
+        var box = await db.Boxes.Include(b => b.Items).FirstOrDefaultAsync(b => b.Id == boxId);
+        if (box == null) return (false, "Không tìm thấy hộp.");
+
+        idNos ??= [];
+        var clean = idNos.Where(x => !string.IsNullOrWhiteSpace(x)).Select(x => x.Trim()).Distinct().ToList();
+        if (clean.Count == 0) return (false, "Cần chọn ít nhất 1 tem (IDNo).");
+
+        // (2) Mọi IDNo phải tồn tại trong kho số tem.
+        var exist = await db.Stamps.Where(s => clean.Contains(s.IDNo)).Select(s => s.IDNo).ToListAsync();
+        var missing = clean.Except(exist).ToList();
+        if (missing.Count > 0) return (false, $"Tem không tồn tại trong kho số: {string.Join(", ", missing)}.");
+
+        // (3) Tem chưa thuộc hộp khác (mỗi tem chỉ nằm trong 1 hộp).
+        var inOther = await db.BoxItems.Where(i => clean.Contains(i.IDNo) && i.BoxId != boxId).Select(i => i.IDNo).ToListAsync();
+        if (inOther.Count > 0) return (false, $"Tem đã thuộc hộp khác: {string.Join(", ", inOther)}.");
+
+        // Bỏ các tem đã có trong chính hộp này (tránh trùng).
+        var already = box.Items.Select(i => i.IDNo).ToHashSet();
+        var toAdd = clean.Where(x => !already.Contains(x)).ToList();
+        if (toAdd.Count == 0) return (false, "Các tem đã có trong hộp này.");
+
+        foreach (var idNo in toAdd)
+            db.BoxItems.Add(new BoxItem { BoxId = box.Id, BoxNo = box.BoxNo, IDNo = idNo, ProductCode = box.ProductCode, InvCode = string.IsNullOrWhiteSpace(invCode) ? null : invCode.Trim(), FlagActive = true });
+        box.FlagMap = true;
+        await db.SaveChangesAsync();
+        return (true, $"Đã gán {toAdd.Count} tem vào hộp '{box.BoxNo}'.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteBoxAsync(int id)
+    {
+        var box = await db.Boxes.Include(b => b.Items).FirstOrDefaultAsync(b => b.Id == id);
+        if (box == null) return (false, "Không tìm thấy hộp.");
+        db.BoxItems.RemoveRange(box.Items);
+        db.Boxes.Remove(box);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa hộp và toàn bộ tem trong hộp.");
     }
 }
