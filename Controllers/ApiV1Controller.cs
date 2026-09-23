@@ -261,6 +261,43 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Sự kiện truy xuất theo CTE + KDE (Event_Event + Event_EventSpec của InBrandCloud eTEM) =====
+    [HttpGet("records")]
+    public async Task<IActionResult> Records([FromQuery] string? q)
+        => Ok((await svc.RecordsAsync(q)).Select(r => new
+        {
+            r.Id, r.EventNo, r.CteCode, r.TplVECode, r.GlnOrgCode, r.GlnOrgName, r.GpsLat, r.GpsLong,
+            r.Remark, r.Active, r.CreatedAt, r.UpdatedAt, specs = r.Specs.Count
+        }));
+
+    [HttpGet("records/{id:int}")]
+    public async Task<IActionResult> Record(int id)
+    {
+        var r = await svc.GetRecordAsync(id);
+        if (r == null) return NotFound(new { error = "Không tìm thấy bản ghi sự kiện." });
+        return Ok(new
+        {
+            r.Id, r.EventNo, r.CteCode, r.TplVECode, r.TplVEDetail, r.GlnOrgCode, r.GlnOrgName, r.GpsLat, r.GpsLong,
+            r.Remark, r.Active, r.CreatedAt, r.UpdatedAt,
+            specs = r.Specs.OrderBy(s => s.KdeCode).Select(s => new { s.KdeCode, s.KdeValue, s.FlagKey, s.FlagList, s.FlagOsOrgView })
+        });
+    }
+
+    [HttpPost("records")]
+    public async Task<IActionResult> SaveRecord([FromBody] RecordReq r)
+    {
+        var specs = (r.Specs ?? []).Select(s => new RecordSpecInput(s.KdeCode ?? "", s.KdeValue)).ToList();
+        var (ok, msg) = await svc.SaveRecordAsync(r.Id, r.CteCode ?? "", r.GlnOrgCode, r.Remark, specs);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("records/{id:int}")]
+    public async Task<IActionResult> DeleteRecord(int id)
+    {
+        var (ok, msg) = await svc.DeleteRecordAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -300,4 +337,6 @@ public class TplCteItemReq { public string? CteCode { get; set; } public string?
 public class TplKdeItemReq { public string? KdeCode { get; set; } public string? KdeDesc { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }
 public class TplCteKdeItemReq { public string? CteCode { get; set; } public string? KdeCode { get; set; } public string? ApiLink { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 public class TplViewEventReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? Detail { get; set; } public string? CteCode { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; public bool FlagBG { get; set; } }
+public class RecordReq { public int Id { get; set; } public string? CteCode { get; set; } public string? GlnOrgCode { get; set; } public string? Remark { get; set; } public List<RecordSpecReq>? Specs { get; set; } }
+public class RecordSpecReq { public string? KdeCode { get; set; } public string? KdeValue { get; set; } }
 

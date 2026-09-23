@@ -26,7 +26,8 @@ function Layout() {
         <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink>
         <NavLink to="/farms">Nông trại</NavLink>
         <NavLink to="/templates">Mẫu loại tổ chức</NavLink>
-        <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink></nav>
+        <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink>
+        <NavLink to="/records">Sự kiện truy xuất</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -668,6 +669,85 @@ function TplViewEventForm({ ve, ctes, onClose, onSaved }) {
   )
 }
 
+function Records() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.records(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (r) => {
+    if (!window.confirm(`Xóa bản ghi ${r.eventNo}?`)) return
+    try { const res = await api.deleteRecord(r.id); flash(true, res.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Sự kiện truy xuất (CTE + KDE)</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / sự kiện…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0 })}>+ Ghi sự kiện</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Bản ghi hành trình truy xuất (GS1 Event_Event + Event_EventSpec) — mỗi bản ghi gắn một sự kiện trọng yếu (CTE) và tập giá trị thành phần dữ liệu (KDE). Bộ giá trị các KDE Key tạo "dấu vân tay" để chống trùng hành trình.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>EventNo</th><th>Sự kiện (CTE)</th><th>Địa điểm (GLN)</th><th className="right">Thành phần</th><th>Mẫu hiển thị</th><th>Cập nhật</th><th></th></tr></thead>
+          <tbody>{rows.map(r => (
+            <tr key={r.id}><td style={{ fontFamily: 'monospace' }}>{r.eventNo}</td><td>{r.cteCode}</td>
+              <td>{r.glnOrgName || r.glnOrgCode || '—'}</td><td className="right">{r.specs}</td>
+              <td className="muted">{r.tplVECode || '—'}</td><td>{fmtDateTime(r.updatedAt)}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(r)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(r)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có bản ghi sự kiện.</td></tr>}</tbody></table>
+      </div>
+      {edit && <RecordForm rec={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function RecordForm({ rec, onClose, onSaved }) {
+  const [ctes, setCtes] = useState([]); const [glns, setGlns] = useState([])
+  const [f, setF] = useState({ id: rec.id, cteCode: rec.cteCode || '', glnOrgCode: rec.glnOrgCode || '', remark: rec.remark || '' })
+  const [specs, setSpecs] = useState([]); const [err, setErr] = useState(''); const [loading, setLoading] = useState(true)
+  const up = (k, v) => setF({ ...f, [k]: v })
+  useEffect(() => {
+    Promise.all([api.ctes(), api.glns()]).then(([c, g]) => { setCtes(c.data); setGlns(g.data) })
+    if (rec.id) api.record(rec.id).then(r => setSpecs(r.data.specs.map(s => ({ kdeCode: s.kdeCode, kdeValue: s.kdeValue || '', flagKey: s.flagKey, flagList: s.flagList })))).finally(() => setLoading(false))
+    else setLoading(false)
+  }, [rec.id])
+  // Khi đổi sự kiện: nạp các KDE đã ánh xạ (CTE_KDE) làm dòng nhập giá trị.
+  useEffect(() => {
+    if (!f.cteCode) { setSpecs([]); return }
+    api.cteKdes(f.cteCode).then(r => setSpecs(r.data.map(m => ({ kdeCode: m.kdeCode, kdeValue: '', flagKey: m.flagKey, flagList: false }))))
+  }, [f.cteCode])
+  const setVal = (code, val) => setSpecs(specs.map(s => s.kdeCode === code ? { ...s, kdeValue: val } : s))
+  const save = async () => {
+    try {
+      await api.saveRecord({ id: f.id, cteCode: f.cteCode, glnOrgCode: f.glnOrgCode, remark: f.remark, specs: specs.map(s => ({ kdeCode: s.kdeCode, kdeValue: s.kdeValue })) })
+      onSaved()
+    } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa bản ghi ${rec.eventNo}` : 'Ghi sự kiện truy xuất'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Sự kiện (CTECode) *"><select value={f.cteCode} onChange={e => up('cteCode', e.target.value)}>
+          <option value="">—</option>{ctes.map(c => <option key={c.id} value={c.code}>{c.code} · {c.description}</option>)}</select></Field>
+        <Field label="Địa điểm (GLN)"><select value={f.glnOrgCode} onChange={e => up('glnOrgCode', e.target.value)}>
+          <option value="">—</option>{glns.map(g => <option key={g.id} value={g.code}>{g.code} · {g.name}</option>)}</select></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      <div className="section-t">Giá trị thành phần dữ liệu (KDE)</div>
+      {loading ? <p className="muted">Đang tải…</p> : specs.length === 0 ? <p className="muted">Sự kiện này chưa có thành phần dữ liệu — hãy ánh xạ CTE_KDE trước.</p> : (
+        <div style={{ overflow: 'auto' }}>
+          <table><thead><tr><th>Thành phần (KDECode)</th><th>Giá trị (KDEValue)</th><th>Cờ</th></tr></thead>
+            <tbody>{specs.map(s => (
+              <tr key={s.kdeCode}><td style={{ fontFamily: 'monospace' }}>{s.kdeCode}</td>
+                <td><input value={s.kdeValue} onChange={e => setVal(s.kdeCode, e.target.value)} /></td>
+                <td>{s.flagKey ? <Badge text="Key" css="danger" /> : null}{s.flagList ? <Badge text="Danh sách" css="info" /> : null}</td></tr>))}</tbody></table>
+        </div>
+      )}
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mọi thành phần Key phải có giá trị; mỗi sự kiện tối đa 1 thành phần loại danh sách; ghi lại cùng bộ Key sẽ cập nhật bản ghi cũ.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu bản ghi</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -683,6 +763,7 @@ export default function App() {
         <Route path="farms" element={<Farms />} />
         <Route path="templates" element={<Templates />} />
         <Route path="tpl-view-events" element={<TplViewEvents />} />
+        <Route path="records" element={<Records />} />
       </Route>
     </Routes>
   )

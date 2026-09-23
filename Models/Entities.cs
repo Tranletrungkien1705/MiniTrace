@@ -248,6 +248,54 @@ public class TplViewEvent : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Sự kiện truy xuất theo chuẩn GS1 (Event_Event của InBrandCloud eTEM).
+/// Một "bản ghi hành trình" gắn với một sự kiện trọng yếu (CTE) và tập giá trị
+/// thành phần dữ liệu (KDE) thu thập tại sự kiện đó. Bộ giá trị của các KDE "Key"
+/// tạo thành "dấu vân tay" (EventNo) để nhận diện trùng lặp: ghi lại cùng bộ Key
+/// → cập nhật bản ghi cũ thay vì tạo mới (chống trùng hành trình).
+/// </summary>
+public class TraceRecord : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string EventNo { get; set; } = "";        // EventNo — mã bản ghi sự kiện (duy nhất trong tenant)
+    public string CteCode { get; set; } = "";        // CTECode — sự kiện trọng yếu áp dụng
+    public string? TplVECode { get; set; }            // TplVECode — mẫu hiển thị đang hoạt động (snapshot)
+    public string? TplVEDetail { get; set; }          // TplVEDetail — chi tiết bố cục hiển thị (snapshot)
+    public string? UIStyleCode { get; set; }          // UIStyleCode — kiểu hiển thị
+    public string? GlnOrgCode { get; set; }           // GLNOrgCode — mã địa điểm (GLN) nơi xảy ra
+    public string? GlnOrgName { get; set; }           // GLNOrgName — tên địa điểm
+    public string? GpsLat { get; set; }               // GPSLat — vĩ độ
+    public string? GpsLong { get; set; }              // GPSLong — kinh độ
+    public string? Remark { get; set; }               // Remark — ghi chú
+    public bool Active { get; set; } = true;          // EventStatus — đang hiệu lực
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+
+    public List<TraceRecordSpec> Specs { get; set; } = [];
+}
+
+/// <summary>
+/// Giá trị thành phần dữ liệu của một sự kiện truy xuất (Event_EventSpec của InBrandCloud eTEM).
+/// Mỗi dòng = 1 KDE (thành phần dữ liệu trọng yếu) + giá trị thu thập tại sự kiện.
+/// KDE có cờ Key (FlagKey) là "khoá" định danh bản ghi; KDE loại danh sách (FlagList) chỉ được 1/sự kiện.
+/// </summary>
+public class TraceRecordSpec : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int RecordId { get; set; }
+    public string CteCode { get; set; } = "";        // CTECode — sự kiện trọng yếu
+    public string KdeCode { get; set; } = "";        // KDECode — mã thành phần dữ liệu
+    public string? KdeValue { get; set; }             // KDEValue — giá trị thu thập
+    public bool FlagKey { get; set; }                 // ctekde_FlagKey — thành phần là Key (bắt buộc)
+    public bool FlagList { get; set; }                // mkde_FlagList — thành phần loại danh sách
+    public bool FlagOsOrgView { get; set; }           // FlagOSOrgView — cho user ngoài org xem
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public TraceRecord Record { get; set; } = null!;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

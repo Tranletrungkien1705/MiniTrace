@@ -49,6 +49,11 @@ public interface ITraceService
     Task<List<TplViewEvent>> TplViewEventsAsync(string? q);
     Task<(bool ok, string msg)> SaveTplViewEventAsync(int id, string code, string description, string detail, string? cteCode, string? remark, bool active, bool flagBG);
     Task<(bool ok, string msg)> DeleteTplViewEventAsync(int id);
+    // Sự kiện truy xuất theo CTE + KDE (Event_Event + Event_EventSpec của InBrandCloud eTEM)
+    Task<List<TraceRecord>> RecordsAsync(string? q);
+    Task<TraceRecord?> GetRecordAsync(int id);
+    Task<(bool ok, string msg)> SaveRecordAsync(int id, string cteCode, string? glnOrgCode, string? remark, List<RecordSpecInput> specs);
+    Task<(bool ok, string msg)> DeleteRecordAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -66,6 +71,9 @@ public record TplNwtKdeInput(string KdeCode, string? KdeDesc, string? DataType, 
 
 /// <summary>1 ánh xạ CTE↔KDE trong mẫu loại tổ chức (TplNWT_CTE_KDE).</summary>
 public record TplNwtCteKdeInput(string CteCode, string KdeCode, string? ApiLink, bool FlagKey, bool FlagOsOrgView);
+
+/// <summary>1 giá trị thành phần dữ liệu (KDE) khi ghi sự kiện truy xuất (1 dòng Event_EventSpec).</summary>
+public record RecordSpecInput(string KdeCode, string? KdeValue);
 
 public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
@@ -579,6 +587,133 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         await db.SaveChangesAsync();
         return (true, "Đã xóa mẫu hiển thị.");
     }
+
+    // ===== Sự kiện truy xuất theo CTE + KDE (Event_Event + Event_EventSpec của InBrandCloud eTEM) =====
+    // Ghi 1 "bản ghi hành trình": sự kiện trọng yếu (CTE) + tập giá trị thành phần dữ liệu (KDE).
+    // Áp quy tắc nghiệp vụ InBrandCloud (Event_Event_SaveX):
+    //  (1) Cần sự kiện (CTECode) tồn tại trong danh mục CTE.
+    //  (2) Mọi KDE gửi lên phải nằm trong ánh xạ CTE_KDE của sự kiện đó.
+    //  (3) Mỗi sự kiện tối đa 1 KDE loại danh sách (FlagList).
+    //  (4) Mọi KDE là Key (FlagKey) phải có giá trị (không rỗng).
+    //  (5) Bộ giá trị các KDE Key tạo "dấu vân tay" (EventNo): ghi lại cùng bộ Key → CẬP NHẬT bản ghi cũ.
+    public async Task<List<TraceRecord>> RecordsAsync(string? q)
+    {
+        var query = db.Records.Include(r => r.Specs).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(r => r.EventNo.Contains(q) || r.CteCode.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(r => r.UpdatedAt).Take(500).ToList();
+    }
+
+    public Task<TraceRecord?> GetRecordAsync(int id) =>
+        db.Records.Include(r => r.Specs).FirstOrDefaultAsync(r => r.Id == id);
+
+    public async Task<(bool ok, string msg)> SaveRecordAsync(int id, string cteCode, string? glnOrgCode, string? remark, List<RecordSpecInput> specs)
+    {
+        cteCode = (cteCode ?? "").Trim();
+        if (cteCode.Length == 0) return (false, "Cần chọn sự kiện (CTECode).");
+        var cte = await db.Ctes.FirstOrDefaultAsync(c => c.Code == cteCode);
+        if (cte == null) return (false, $"Sự kiện '{cteCode}' không tồn tại.");
+
+        specs ??= [];
+        var clean = specs.Where(s => !string.IsNullOrWhiteSpace(s.KdeCode))
+                         .GroupBy(s => s.KdeCode.Trim()).Select(g => g.First()).ToList();
+        if (clean.Count == 0) return (false, "Cần nhập ít nhất 1 thành phần dữ liệu (KDE).");
+
+        // (2) Mọi KDE phải nằm trong ánh xạ CTE_KDE của sự kiện.
+        var mapped = await db.CteKdes.Where(m => m.CteCode == cteCode).ToListAsync();
+        var mappedCodes = mapped.Select(m => m.KdeCode).ToHashSet();
+        var bad = clean.Select(s => s.KdeCode.Trim()).Where(c => !mappedCodes.Contains(c)).ToList();
+        if (bad.Count > 0) return (false, $"Thành phần không thuộc sự kiện '{cteCode}': {string.Join(", ", bad)}.");
+
+        // Nạp metadata KDE (FlagList) để áp quy tắc (3).
+        var codes = clean.Select(s => s.KdeCode.Trim()).ToList();
+        var kdes = await db.Kdes.Where(k => codes.Contains(k.Code)).ToListAsync();
+        // (3) Tối đa 1 KDE loại danh sách.
+        var listKdes = kdes.Where(k => k.FlagList).Select(k => k.Code).ToList();
+        if (listKdes.Count > 1) return (false, $"Mỗi sự kiện chỉ được có tối đa 1 thành phần loại danh sách (đang có: {string.Join(", ", listKdes)}).");
+
+        // (4) Mọi KDE là Key phải có giá trị.
+        var keyCodes = mapped.Where(m => m.FlagKey).Select(m => m.KdeCode).ToHashSet();
+        var missingKey = clean.Where(s => keyCodes.Contains(s.KdeCode.Trim()) && string.IsNullOrWhiteSpace(s.KdeValue))
+                              .Select(s => s.KdeCode.Trim()).ToList();
+        if (missingKey.Count > 0) return (false, $"Thành phần Key bắt buộc phải có giá trị: {string.Join(", ", missingKey)}.");
+
+        // (5) Dấu vân tay từ bộ giá trị các KDE Key → nhận diện bản ghi trùng.
+        var keyPairs = clean.Where(s => keyCodes.Contains(s.KdeCode.Trim()))
+                            .Select(s => (Code: s.KdeCode.Trim(), Value: (s.KdeValue ?? "").Trim()))
+                            .OrderBy(p => p.Code).ToList();
+        var fingerprint = string.Join("|", keyPairs.Select(p => $"{p.Code}={p.Value}"));
+
+        TraceRecord rec;
+        if (id > 0)
+        {
+            rec = await db.Records.Include(r => r.Specs).FirstOrDefaultAsync(r => r.Id == id) ?? null!;
+            if (rec == null) return (false, "Không tìm thấy bản ghi sự kiện.");
+        }
+        else
+        {
+            // Tìm bản ghi cũ có cùng dấu vân tay (cùng sự kiện + cùng bộ Key) → cập nhật thay vì tạo mới.
+            var candidates = await db.Records.Include(r => r.Specs).Where(r => r.CteCode == cteCode).ToListAsync();
+            var existing = candidates.FirstOrDefault(r => Fingerprint(r.Specs, keyCodes) == fingerprint);
+            if (existing == null)
+            {
+                rec = new TraceRecord { EventNo = NewEventNo(), CteCode = cteCode };
+                db.Records.Add(rec);
+            }
+            else rec = existing;
+        }
+
+        // Snapshot mẫu hiển thị đang hoạt động của sự kiện (nếu có).
+        var ve = await db.TplViewEvents.FirstOrDefaultAsync(v => v.CteCode == cteCode && v.Active)
+                 ?? await db.TplViewEvents.FirstOrDefaultAsync(v => v.CteCode == null && v.Active);
+        rec.TplVECode = ve?.Code; rec.TplVEDetail = ve?.Detail;
+        rec.GlnOrgCode = string.IsNullOrWhiteSpace(glnOrgCode) ? null : glnOrgCode.Trim();
+        if (rec.GlnOrgCode != null)
+        {
+            var gln = await db.Glns.FirstOrDefaultAsync(g => g.Code == rec.GlnOrgCode);
+            rec.GlnOrgName = gln?.Name; rec.GpsLat = gln?.GpsLat; rec.GpsLong = gln?.GpsLong;
+        }
+        rec.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        rec.Active = true;
+        rec.UpdatedAt = DateTime.Now;
+        await db.SaveChangesAsync();
+
+        // Thay thế toàn bộ giá trị KDE của bản ghi.
+        var oldSpecs = await db.RecordSpecs.Where(s => s.RecordId == rec.Id).ToListAsync();
+        db.RecordSpecs.RemoveRange(oldSpecs);
+        foreach (var s in clean)
+        {
+            var code = s.KdeCode.Trim();
+            var kde = kdes.FirstOrDefault(k => k.Code == code);
+            var map = mapped.FirstOrDefault(m => m.KdeCode == code);
+            db.RecordSpecs.Add(new TraceRecordSpec
+            {
+                RecordId = rec.Id, CteCode = cteCode, KdeCode = code,
+                KdeValue = string.IsNullOrWhiteSpace(s.KdeValue) ? null : s.KdeValue.Trim(),
+                FlagKey = map?.FlagKey ?? false, FlagList = kde?.FlagList ?? false, FlagOsOrgView = map?.FlagOsOrgView ?? false
+            });
+        }
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật bản ghi sự kiện." : $"Đã ghi sự kiện '{cteCode}' ({rec.EventNo}).");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteRecordAsync(int id)
+    {
+        var rec = await db.Records.Include(r => r.Specs).FirstOrDefaultAsync(r => r.Id == id);
+        if (rec == null) return (false, "Không tìm thấy bản ghi sự kiện.");
+        db.RecordSpecs.RemoveRange(rec.Specs);
+        db.Records.Remove(rec);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa bản ghi sự kiện.");
+    }
+
+    // Dấu vân tay của 1 bản ghi = chuỗi "KDEKey=giá trị" của các KDE Key (đã sắp theo mã).
+    private static string Fingerprint(IEnumerable<TraceRecordSpec> specs, HashSet<string> keyCodes) =>
+        string.Join("|", specs.Where(s => keyCodes.Contains(s.KdeCode))
+            .Select(s => (Code: s.KdeCode, Value: (s.KdeValue ?? "").Trim()))
+            .OrderBy(p => p.Code).Select(p => $"{p.Code}={p.Value}"));
+
+    private static string NewEventNo() => "EV" + DateTime.Now.ToString("yyMMddHHmmss") + Guid.NewGuid().ToString("N")[..4].ToUpperInvariant();
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();
 }

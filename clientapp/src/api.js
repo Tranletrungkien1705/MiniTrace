@@ -41,7 +41,11 @@ export const api = {
   deleteTemplate: (id) => req(`/templates/${id}`, { method: 'DELETE' }),
   tplViewEvents: (q) => req(`/tpl-view-events${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveTplViewEvent: (b) => req('/tpl-view-events', { method: 'POST', body: b }),
-  deleteTplViewEvent: (id) => req(`/tpl-view-events/${id}`, { method: 'DELETE' })
+  deleteTplViewEvent: (id) => req(`/tpl-view-events/${id}`, { method: 'DELETE' }),
+  records: (q) => req(`/records${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  record: (id) => req(`/records/${id}`),
+  saveRecord: (b) => req('/records', { method: 'POST', body: b }),
+  deleteRecord: (id) => req(`/records/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

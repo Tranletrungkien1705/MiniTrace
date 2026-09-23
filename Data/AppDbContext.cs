@@ -23,6 +23,8 @@ public class AppDbContext : DbContext
     public DbSet<TplNwtKde> TplNwtKdes => Set<TplNwtKde>();
     public DbSet<TplNwtCteKde> TplNwtCteKdes => Set<TplNwtCteKde>();
     public DbSet<TplViewEvent> TplViewEvents => Set<TplViewEvent>();
+    public DbSet<TraceRecord> Records => Set<TraceRecord>();
+    public DbSet<TraceRecordSpec> RecordSpecs => Set<TraceRecordSpec>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -98,6 +100,17 @@ public class AppDbContext : DbContext
         b.Entity<TplViewEvent>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<TraceRecord>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.EventNo }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<TraceRecordSpec>(e =>
+        {
+            e.HasOne(x => x.Record).WithMany(x => x.Specs).HasForeignKey(x => x.RecordId);
+            e.HasIndex(x => new { x.OrgId, x.RecordId, x.KdeCode }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

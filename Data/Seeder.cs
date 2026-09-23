@@ -172,13 +172,35 @@ public static class Seeder
                     Detail = "{stage} · {Location} · {Actor} · {OccurredAt}", Remark = "Dùng khi sự kiện chưa có mẫu riêng", Active = false, FlagBG = true });
             await db.SaveChangesAsync();
         }
+
+        // Sự kiện truy xuất theo CTE + KDE (Event_Event + Event_EventSpec) — bản ghi hành trình mẫu.
+        if (!await db.Records.AnyAsync())
+        {
+            var rec1 = new TraceRecord { EventNo = "EV2601010001A", CteCode = "PRODUCTION_IN", TplVECode = "VE_PRODUCTION",
+                TplVEDetail = "{Tên SP} · Lô {LOT_NO} · NSX {PROD_DATE} · {Location}", GlnOrgCode = "8930001000001",
+                GlnOrgName = "Nhà máy HTX Lúa gạo ST", GpsLat = "9.6025", GpsLong = "105.9739", Remark = "Lô ST25 vụ đông xuân" };
+            db.Records.Add(rec1); await db.SaveChangesAsync();
+            db.RecordSpecs.AddRange(
+                new TraceRecordSpec { RecordId = rec1.Id, CteCode = "PRODUCTION_IN", KdeCode = "LOT_NO", KdeValue = "L2026-001", FlagKey = true },
+                new TraceRecordSpec { RecordId = rec1.Id, CteCode = "PRODUCTION_IN", KdeCode = "PROD_DATE", KdeValue = "2026-01-05", FlagKey = true },
+                new TraceRecordSpec { RecordId = rec1.Id, CteCode = "PRODUCTION_IN", KdeCode = "SERIAL_NO", KdeValue = "89DEMO0001AB", FlagKey = true });
+            await db.SaveChangesAsync();
+
+            var rec2 = new TraceRecord { EventNo = "EV2601010002B", CteCode = "QUALITY_CHECK", TplVECode = "VE_QUALITY",
+                TplVEDetail = "Kiểm định: {QUALITY_RESULT} · {Actor} · {Location}", GlnOrgCode = "8930001000002",
+                GlnOrgName = "Kho thành phẩm Sóc Trăng", GpsLat = "9.6031", GpsLong = "105.9801", Remark = "Đạt VietGAP" };
+            db.Records.Add(rec2); await db.SaveChangesAsync();
+            db.RecordSpecs.AddRange(
+                new TraceRecordSpec { RecordId = rec2.Id, CteCode = "QUALITY_CHECK", KdeCode = "QUALITY_RESULT", KdeValue = "Đạt", FlagKey = true, FlagList = true });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task MigratePostgresAsync(AppDbContext db)
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",
