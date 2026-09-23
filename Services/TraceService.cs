@@ -79,6 +79,10 @@ public interface ITraceService
     Task<(bool ok, string msg)> SaveQueSyncAsync(int id, string networkId, string queSyncNo, string tableCode, bool flagSyncBL, string? remark);
     Task<(bool ok, string msg)> MarkQueSyncAsync(int id, QueSyncStatus status, string? errorDetail);
     Task<(bool ok, string msg)> DeleteQueSyncAsync(int id);
+    // Danh mục dữ liệu gốc (GS1 Master Data — Mst_MasterData của InBrandCloud eTEM)
+    Task<List<MasterData>> MasterDatasAsync(string? q);
+    Task<(bool ok, string msg)> SaveMasterDataAsync(int id, string code, string? networkId, string tableName, bool active, string? remark);
+    Task<(bool ok, string msg)> DeleteMasterDataAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1109,5 +1113,52 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.QueSyncs.Remove(row);
         await db.SaveChangesAsync();
         return (true, "Đã xóa bản ghi hàng đợi.");
+    }
+
+    // ===== Danh mục dữ liệu gốc (GS1 Master Data — Mst_MasterData của InBrandCloud eTEM) =====
+    // "Từ điển" các bảng/danh mục tham chiếu mà eTEM dùng để tra cứu động (MDCode ↔ TableName).
+    public async Task<List<MasterData>> MasterDatasAsync(string? q)
+    {
+        var query = db.MasterDatas.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(m => m.Code.Contains(q) || m.TableName.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(m => m.Code).ToList();
+    }
+
+    // Lưu danh mục dữ liệu gốc. Áp quy tắc InBrandCloud (Mst_MasterData_CheckDB):
+    //  (1) Cần mã danh mục (MDCode) + tên bảng (TableName).
+    //  (2) Mã danh mục duy nhất trong tenant.
+    public async Task<(bool ok, string msg)> SaveMasterDataAsync(int id, string code, string? networkId, string tableName, bool active, string? remark)
+    {
+        code = (code ?? "").Trim();
+        tableName = (tableName ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã danh mục (MDCode).");
+        if (tableName.Length == 0) return (false, "Cần tên bảng dữ liệu (TableName).");
+        // Mã danh mục phải duy nhất trong tenant.
+        if (await db.MasterDatas.AnyAsync(m => m.Code == code && m.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        MasterData md;
+        if (id > 0)
+        {
+            md = await db.MasterDatas.FirstOrDefaultAsync(m => m.Id == id) ?? null!;
+            if (md == null) return (false, "Không tìm thấy danh mục dữ liệu gốc.");
+        }
+        else { md = new MasterData(); db.MasterDatas.Add(md); }
+
+        md.Code = code; md.TableName = tableName;
+        md.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        md.Active = active;
+        md.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật danh mục dữ liệu gốc." : "Đã thêm danh mục dữ liệu gốc.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteMasterDataAsync(int id)
+    {
+        var md = await db.MasterDatas.FirstOrDefaultAsync(m => m.Id == id);
+        if (md == null) return (false, "Không tìm thấy danh mục dữ liệu gốc.");
+        db.MasterDatas.Remove(md);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa danh mục dữ liệu gốc.");
     }
 }

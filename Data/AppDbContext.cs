@@ -32,6 +32,7 @@ public class AppDbContext : DbContext
     public DbSet<Box> Boxes => Set<Box>();
     public DbSet<BoxItem> BoxItems => Set<BoxItem>();
     public DbSet<QueSync> QueSyncs => Set<QueSync>();
+    public DbSet<MasterData> MasterDatas => Set<MasterData>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -155,6 +156,11 @@ public class AppDbContext : DbContext
         b.Entity<QueSync>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.NetworkId, x.QueSyncNo, x.TableCode }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<MasterData>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

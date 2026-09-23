@@ -471,6 +471,25 @@ public class QueSync : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Danh mục dữ liệu gốc (GS1 Master Data — Mst_MasterData của InBrandCloud eTEM).
+/// "Từ điển" các bảng/danh mục tham chiếu mà hệ thống eTEM dùng để tra cứu động:
+/// mỗi dòng gắn một mã danh mục (MDCode) với tên bảng dữ liệu (TableName) và môi trường
+/// mạng áp dụng (NetworkID). Khi một danh mục được khai báo ở đây và đang hoạt động
+/// (FlagActive), hệ thống mới cho phép tra cứu/đồng bộ dữ liệu của bảng đó.
+/// </summary>
+public class MasterData : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // MDCode — mã danh mục dữ liệu gốc (duy nhất trong tenant)
+    public string? NetworkId { get; set; }          // NetworkID — môi trường/loại mạng áp dụng
+    public string TableName { get; set; } = "";     // TableName — tên bảng dữ liệu tham chiếu
+    public bool Active { get; set; } = true;        // FlagActive — đang hoạt động
+    public string? Remark { get; set; }             // ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

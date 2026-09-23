@@ -65,7 +65,10 @@ export const api = {
   queSyncs: (q) => req(`/que-syncs${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveQueSync: (b) => req('/que-syncs', { method: 'POST', body: b }),
   markQueSync: (id, b) => req(`/que-syncs/${id}/mark`, { method: 'POST', body: b }),
-  deleteQueSync: (id) => req(`/que-syncs/${id}`, { method: 'DELETE' })
+  deleteQueSync: (id) => req(`/que-syncs/${id}`, { method: 'DELETE' }),
+  masterDatas: (q) => req(`/master-datas${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveMasterData: (b) => req('/master-datas', { method: 'POST', body: b }),
+  deleteMasterData: (id) => req(`/master-datas/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

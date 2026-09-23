@@ -455,6 +455,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục dữ liệu gốc (GS1 Master Data — Mst_MasterData của InBrandCloud eTEM) =====
+    [HttpGet("master-datas")]
+    public async Task<IActionResult> MasterDatas([FromQuery] string? q)
+        => Ok((await svc.MasterDatasAsync(q)).Select(m => new { m.Id, m.Code, m.NetworkId, m.TableName, m.Active, m.Remark, m.CreatedAt }));
+
+    [HttpPost("master-datas")]
+    public async Task<IActionResult> SaveMasterData([FromBody] MasterDataReq r)
+    {
+        var (ok, msg) = await svc.SaveMasterDataAsync(r.Id, r.Code ?? "", r.NetworkId, r.TableName ?? "", r.Active, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("master-datas/{id:int}")]
+    public async Task<IActionResult> DeleteMasterData(int id)
+    {
+        var (ok, msg) = await svc.DeleteMasterDataAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -503,4 +522,5 @@ public class BoxReq { public string? BoxNo { get; set; } public string? ProductC
 public class BoxStampsReq { public List<string>? IdNos { get; set; } public string? InvCode { get; set; } }
 public class QueSyncReq { public int Id { get; set; } public string? NetworkId { get; set; } public string? QueSyncNo { get; set; } public string? TableCode { get; set; } public bool FlagSyncBL { get; set; } public string? Remark { get; set; } }
 public class QueSyncMarkReq { public int Status { get; set; } public string? ErrorDetail { get; set; } }
+public class MasterDataReq { public int Id { get; set; } public string? Code { get; set; } public string? NetworkId { get; set; } public string? TableName { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
 

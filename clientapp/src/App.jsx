@@ -31,7 +31,8 @@ function Layout() {
         <NavLink to="/records">Sự kiện truy xuất</NavLink>
         <NavLink to="/stamps">Sinh tem</NavLink>
         <NavLink to="/boxes">Đóng hộp</NavLink>
-        <NavLink to="/que-syncs">Hàng đợi đồng bộ</NavLink></nav>
+        <NavLink to="/que-syncs">Hàng đợi đồng bộ</NavLink>
+        <NavLink to="/master-datas">Dữ liệu gốc</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1116,6 +1117,63 @@ function QueSyncForm({ row, onClose, onSaved }) {
   )
 }
 
+function MasterDatas() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.masterDatas(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (m) => {
+    if (!window.confirm(`Xóa danh mục dữ liệu gốc ${m.code}?`)) return
+    try { const r = await api.deleteMasterData(m.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Dữ liệu gốc</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / tên bảng…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, code: '', networkId: '', tableName: '', active: true, remark: '' })}>+ Thêm danh mục</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục dữ liệu gốc (GS1 Master Data — Mst_MasterData) — "từ điển" các bảng/danh mục tham chiếu mà eTEM dùng để tra cứu động (MDCode ↔ TableName).</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (MDCode)</th><th>Tên bảng (TableName)</th><th>Loại mạng</th><th>Trạng thái</th><th>Ghi chú</th><th></th></tr></thead>
+          <tbody>{rows.map(m => (
+            <tr key={m.id}><td style={{ fontFamily: 'monospace' }}>{m.code}</td><td style={{ fontFamily: 'monospace' }}>{m.tableName}</td>
+              <td>{m.networkId || '—'}</td>
+              <td><Badge text={m.active ? 'Đang dùng' : 'Ngưng'} css={m.active ? 'success' : 'secondary'} /></td>
+              <td>{m.remark || '—'}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(m)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(m)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>Chưa có danh mục dữ liệu gốc.</td></tr>}</tbody></table>
+      </div>
+      {edit && <MasterDataForm md={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function MasterDataForm({ md, onClose, onSaved }) {
+  const [f, setF] = useState({ ...md }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveMasterData({ id: f.id, code: f.code, networkId: f.networkId, tableName: f.tableName, active: f.active, remark: f.remark }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa danh mục ${f.code}` : 'Thêm danh mục dữ liệu gốc'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã danh mục (MDCode) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: MD_CTE" /></Field>
+        <Field label="Loại mạng (NetworkID)"><select value={f.networkId || ''} onChange={e => up('networkId', e.target.value)}>
+          <option value="">—</option>{CTE_NET.map(n => <option key={n} value={n}>{n}</option>)}</select></Field></div>
+      <Field label="Tên bảng dữ liệu (TableName) *"><input value={f.tableName} onChange={e => up('tableName', e.target.value)} placeholder="vd: Mst_CTE" /></Field>
+      <Field label="Ghi chú"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang hoạt động</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã danh mục + tên bảng; mã danh mục duy nhất trong tenant.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1137,6 +1195,7 @@ export default function App() {
         <Route path="stamps" element={<Stamps />} />
         <Route path="boxes" element={<Boxes />} />
         <Route path="que-syncs" element={<QueSyncs />} />
+        <Route path="master-datas" element={<MasterDatas />} />
       </Route>
     </Routes>
   )
