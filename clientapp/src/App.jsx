@@ -1830,6 +1830,83 @@ function NetworkMasterForm({ row, onClose, onSaved }) {
   )
 }
 
+function DistributionHistories() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [refType, setRefType] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.distributionHistories(q, refType === '' ? null : Number(refType)).then(r => setRows(r.data))
+  useEffect(() => { load() }, [refType])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (h) => {
+    if (!window.confirm(`Xóa bản ghi lịch sử ${h.if_InvInHistNo}?`)) return
+    try { const r = await api.deleteDistributionHistory(h.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Lịch sử phân phối</h1><div className="sp" />
+        <select style={{ maxWidth: 160 }} value={refType} onChange={e => setRefType(e.target.value)}>
+          <option value="">Tất cả chiều</option><option value="0">Nhập kho</option><option value="1">Xuất kho</option></select>
+        <input style={{ maxWidth: 240 }} placeholder="Tìm tem / khách hàng / tài xế…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, idNo: '', refType: 1, networkId: '', refNo: '', invCode: '', productionLotNo: '', boxNo: '', canNo: '', customerCode: '', customerName: '', plateNo: '', moocNo: '', driverName: '', driverPhoneNo: '', areaName: '', userKCS: '', flagIsError: false })}>+ Thêm bản ghi</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Lịch sử phân phối / nhập-xuất kho theo tem (GS1 InvF_InventoryHistInOutID) — mỗi dòng là một lần di chuyển của tem: nhập kho (IN) hoặc xuất kho tới khách hàng (OUT), kèm khách hàng nhận, tài xế/biển số vận chuyển và vùng thị trường.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã lịch sử</th><th>Tem (IDNo)</th><th>Chiều</th><th>Khách hàng</th><th>Tài xế</th><th>Biển số</th><th>Vùng thị trường</th><th>Lô</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(h => (
+            <tr key={h.id}><td style={{ fontFamily: 'monospace' }}>{h.if_InvInHistNo}</td><td style={{ fontFamily: 'monospace' }}>{h.idNo}</td>
+              <td><Badge text={h.refTypeText} css={h.refType === 1 ? 'warning' : 'info'} /></td>
+              <td>{h.customerName || h.customerCode || '—'}</td><td>{h.driverName || '—'}</td><td>{h.plateNo || '—'}</td>
+              <td>{h.areaNameText || h.areaName || '—'}</td><td className="muted">{h.productionLotNo || '—'}</td>
+              <td>{h.flagIsError ? <Badge text="Ghép lỗi" css="danger" /> : <Badge text="OK" css="success" />}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(h)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(h)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={10} className="muted" style={{ padding: 20 }}>Chưa có bản ghi lịch sử phân phối.</td></tr>}</tbody></table>
+      </div>
+      {edit && <DistributionHistoryForm row={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function DistributionHistoryForm({ row, onClose, onSaved }) {
+  const [f, setF] = useState({
+    id: row.id || 0, idNo: row.idNo || '', refType: row.refType ?? 1, networkId: row.networkId || '', refNo: row.refNo || '',
+    invCode: row.invCode || '', productionLotNo: row.productionLotNo || '', boxNo: row.boxNo || '', canNo: row.canNo || '',
+    customerCode: row.customerCode || '', customerName: row.customerName || '', plateNo: row.plateNo || '', moocNo: row.moocNo || '',
+    driverName: row.driverName || '', driverPhoneNo: row.driverPhoneNo || '', areaName: row.areaName || '', userKCS: row.userKCS || '',
+    flagIsError: row.flagIsError ?? false
+  })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveDistributionHistory({ ...f, refType: Number(f.refType) }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa lịch sử phân phối ${row.if_InvInHistNo}` : 'Thêm lịch sử phân phối'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Tem (IDNo) *"><input value={f.idNo} onChange={e => up('idNo', e.target.value)} placeholder="vd: P000001" /></Field>
+        <Field label="Chiều (RefType) *"><select value={f.refType} onChange={e => up('refType', e.target.value)}><option value={0}>Nhập kho (IN)</option><option value={1}>Xuất kho (OUT)</option></select></Field></div>
+      <div className="row"><Field label="Mã mạng (NetworkID)"><input value={f.networkId} onChange={e => up('networkId', e.target.value)} placeholder="vd: Distributor" /></Field>
+        <Field label="Số chứng từ (RefNo)"><input value={f.refNo} onChange={e => up('refNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Mã kho (InvCode)"><input value={f.invCode} onChange={e => up('invCode', e.target.value)} placeholder="vd: KHO-FG-ST" /></Field>
+        <Field label="Lô sản xuất (ProductionLotNo)"><input value={f.productionLotNo} onChange={e => up('productionLotNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Mã hộp (BoxNo)"><input value={f.boxNo} onChange={e => up('boxNo', e.target.value)} /></Field>
+        <Field label="Mã thùng (CanNo)"><input value={f.canNo} onChange={e => up('canNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Mã khách hàng (CustomerCode)"><input value={f.customerCode} onChange={e => up('customerCode', e.target.value)} /></Field>
+        <Field label="Tên khách hàng (CustomerName)"><input value={f.customerName} onChange={e => up('customerName', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Biển số xe (PlateNo)"><input value={f.plateNo} onChange={e => up('plateNo', e.target.value)} /></Field>
+        <Field label="Số mooc (MoocNo)"><input value={f.moocNo} onChange={e => up('moocNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Tài xế (DriverName)"><input value={f.driverName} onChange={e => up('driverName', e.target.value)} /></Field>
+        <Field label="Điện thoại tài xế"><input value={f.driverPhoneNo} onChange={e => up('driverPhoneNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Vùng thị trường (AreaName)"><input value={f.areaName} onChange={e => up('areaName', e.target.value)} placeholder="vd: MA-TPHCM" /></Field>
+        <Field label="Người KCS (UserKCS)"><input value={f.userKCS} onChange={e => up('userKCS', e.target.value)} /></Field></div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagIsError} onChange={e => up('flagIsError', e.target.checked)} /> Ghép tem lỗi (FlagIsError)</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã tem (IDNo); tem phải tồn tại trong kho số tem; vùng thị trường (nếu có) phải tồn tại trong danh mục.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
