@@ -137,6 +137,23 @@ public class Gln : IOrgOwned
 }
 
 /// <summary>
+/// Danh mục Nông trại / Trang trại (GS1 Farm — Mst_Farm của InBrandCloud eTEM).
+/// Tương đương bảng Mst_Farm: định danh "từ điển" các nông trại/vùng trồng
+/// trong chuỗi truy xuất nguồn gốc (nơi sản phẩm được nuôi trồng/thu hoạch),
+/// gắn với loại mạng (NetworkType) để phân biệt nhà sản xuất/đại lý.
+/// </summary>
+public class Farm : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // FarmCode — mã nông trại (duy nhất trong tenant)
+    public string Name { get; set; } = "";        // FarmName — tên nông trại
+    public string? NetworkType { get; set; }        // NetworkID — loại mạng/đối tác áp dụng
+    public bool Active { get; set; } = true;        // FlagActive
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
+/// <summary>
 /// Trạng thái mẫu loại tổ chức (TplNWTStatus của InBrandCloud eTEM).
 /// PENDING = chờ duyệt (mới tạo/sửa), APPROVE = đã duyệt, CANCEL = đã hủy.
 /// </summary>

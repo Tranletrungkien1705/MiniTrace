@@ -35,6 +35,10 @@ public interface ITraceService
     Task<List<Gln>> GlnsAsync(string? q);
     Task<(bool ok, string msg)> SaveGlnAsync(int id, string code, string name, string? gpsLat, string? gpsLong, string? remark, bool active);
     Task<(bool ok, string msg)> DeleteGlnAsync(int id);
+    // Danh mục nông trại / vùng trồng (GS1 Farm — Mst_Farm của InBrandCloud eTEM)
+    Task<List<Farm>> FarmsAsync(string? q);
+    Task<(bool ok, string msg)> SaveFarmAsync(int id, string code, string name, string? networkType, bool active);
+    Task<(bool ok, string msg)> DeleteFarmAsync(int id);
     // Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM)
     Task<List<TemplateNWType>> TemplatesAsync(string? q);
     Task<TemplateNWType?> GetTemplateAsync(int id);
@@ -372,6 +376,49 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Glns.Remove(gln);
         await db.SaveChangesAsync();
         return (true, "Đã xóa địa điểm.");
+    }
+
+    // ===== Danh mục nông trại / vùng trồng (GS1 Farm — Mst_Farm của InBrandCloud eTEM) =====
+    // "Từ điển" các nông trại/vùng trồng trong chuỗi truy xuất nguồn gốc (nơi nuôi trồng/thu hoạch).
+    public async Task<List<Farm>> FarmsAsync(string? q)
+    {
+        var query = db.Farms.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(f => f.Code.Contains(q) || f.Name.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(f => f.Code).ToList();
+    }
+
+    public async Task<(bool ok, string msg)> SaveFarmAsync(int id, string code, string name, string? networkType, bool active)
+    {
+        code = (code ?? "").Trim();
+        name = (name ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã nông trại (FarmCode).");
+        if (name.Length == 0) return (false, "Cần tên nông trại (FarmName).");
+        // Mã nông trại phải duy nhất trong tenant.
+        if (await db.Farms.AnyAsync(f => f.Code == code && f.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        Farm farm;
+        if (id > 0)
+        {
+            farm = await db.Farms.FirstOrDefaultAsync(f => f.Id == id) ?? null!;
+            if (farm == null) return (false, "Không tìm thấy nông trại.");
+        }
+        else { farm = new Farm(); db.Farms.Add(farm); }
+
+        farm.Code = code; farm.Name = name;
+        farm.NetworkType = string.IsNullOrWhiteSpace(networkType) ? null : networkType.Trim();
+        farm.Active = active;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật nông trại." : "Đã thêm nông trại.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteFarmAsync(int id)
+    {
+        var farm = await db.Farms.FirstOrDefaultAsync(f => f.Id == id);
+        if (farm == null) return (false, "Không tìm thấy nông trại.");
+        db.Farms.Remove(farm);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa nông trại.");
     }
 
     // ===== Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM) =====

@@ -107,6 +107,16 @@ public static class Seeder
             await db.SaveChangesAsync();
         }
 
+        // Danh mục nông trại / vùng trồng (GS1 Farm — Mst_Farm của InBrandCloud eTEM) — "từ điển" nơi nuôi trồng/thu hoạch.
+        if (!await db.Farms.AnyAsync())
+        {
+            db.Farms.AddRange(
+                new Farm { Code = "FARM-ST01", Name = "Vùng trồng lúa ST25 Sóc Trăng", NetworkType = "Manufacturer", Active = true },
+                new Farm { Code = "FARM-CT01", Name = "Vùng trồng Cần Thơ", NetworkType = "Manufacturer", Active = true },
+                new Farm { Code = "FARM-DL01", Name = "Trang trại đối tác Đồng Tháp", NetworkType = "Distributor", Active = true });
+            await db.SaveChangesAsync();
+        }
+
         // Mẫu loại tổ chức (GS1 Network Type Template) — "bộ khung" CTE + KDE + ánh xạ cho từng loại tổ chức.
         if (!await db.Templates.AnyAsync())
         {
@@ -168,7 +178,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

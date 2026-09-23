@@ -176,6 +176,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục nông trại / vùng trồng (GS1 Farm — Mst_Farm của InBrandCloud eTEM) =====
+    [HttpGet("farms")]
+    public async Task<IActionResult> Farms([FromQuery] string? q)
+        => Ok((await svc.FarmsAsync(q)).Select(f => new { f.Id, f.Code, f.Name, f.NetworkType, f.Active, f.CreatedAt }));
+
+    [HttpPost("farms")]
+    public async Task<IActionResult> SaveFarm([FromBody] FarmReq r)
+    {
+        var (ok, msg) = await svc.SaveFarmAsync(r.Id, r.Code ?? "", r.Name ?? "", r.NetworkType, r.Active);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("farms/{id:int}")]
+    public async Task<IActionResult> DeleteFarm(int id)
+    {
+        var (ok, msg) = await svc.DeleteFarmAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // ===== Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM) =====
     [HttpGet("templates")]
     public async Task<IActionResult> Templates([FromQuery] string? q)
@@ -275,6 +294,7 @@ public class KdeReq { public int Id { get; set; } public string? Code { get; set
 public class CteKdeReq { public string? CteCode { get; set; } public List<CteKdeItemReq>? Items { get; set; } }
 public class CteKdeItemReq { public string? KdeCode { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 public class GlnReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? GpsLat { get; set; } public string? GpsLong { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; }
+public class FarmReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? NetworkType { get; set; } public bool Active { get; set; } = true; }
 public class TemplateReq { public int Id { get; set; } public string? TplNWType { get; set; } public string? Description { get; set; } public string? Remark { get; set; } public List<TplCteItemReq>? Ctes { get; set; } public List<TplKdeItemReq>? Kdes { get; set; } public List<TplCteKdeItemReq>? CteKdes { get; set; } }
 public class TplCteItemReq { public string? CteCode { get; set; } public string? CteDesc { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
 public class TplKdeItemReq { public string? KdeCode { get; set; } public string? KdeDesc { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }
