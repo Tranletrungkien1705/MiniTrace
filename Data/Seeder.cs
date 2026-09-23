@@ -311,6 +311,21 @@ public static class Seeder
                     Status = NetworkOrgStatus.New, Active = false, Remark = "Điểm bán lẻ — tạm ngưng" });
             await db.SaveChangesAsync();
         }
+
+        // Kho số bí mật (Inv_InventorySecret của InBrandCloud eTEM) — số bí mật in lên tem cào chống giả.
+        if (!await db.Secrets.AnyAsync())
+        {
+            db.Secrets.AddRange(
+                new Secret { SerialNo = "P000001", SecretNo = "SEC000001", QR_SerialNo = "QR-P000001", NetworkId = "Manufacturer",
+                    Mst = "MST-NXSX-ST", OrgCode = "ORG-NXSX-ST", GenTimesNo = "GT2601010001", FlagMap = true, FlagUsed = false, Remark = "Số bí mật cho tem P000001" },
+                new Secret { SerialNo = "P000002", SecretNo = "SEC000002", QR_SerialNo = "QR-P000002", NetworkId = "Manufacturer",
+                    Mst = "MST-NXSX-ST", OrgCode = "ORG-NXSX-ST", GenTimesNo = "GT2601010001", FlagMap = true, FlagUsed = false, Remark = "Số bí mật cho tem P000002" },
+                new Secret { SerialNo = "P000003", SecretNo = "SEC000003", QR_SerialNo = "QR-P000003", NetworkId = "Manufacturer",
+                    Mst = "MST-NXSX-ST", OrgCode = "ORG-NXSX-ST", GenTimesNo = "GT2601010001", FlagMap = true, FlagUsed = true, Remark = "Đã phát hành in tem" },
+                new Secret { SerialNo = "P000004", SecretNo = "SEC000004", QR_SerialNo = "QR-P000004", NetworkId = "Manufacturer",
+                    Mst = "MST-NXSX-ST", OrgCode = "ORG-NXSX-ST", GenTimesNo = "GT2601010001", FlagMap = false, FlagUsed = false, Remark = "Chưa ghép serial" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -324,7 +339,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

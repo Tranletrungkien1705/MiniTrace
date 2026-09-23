@@ -77,7 +77,11 @@ export const api = {
   networkOrgs: (q) => req(`/network-orgs${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveNetworkOrg: (b) => req('/network-orgs', { method: 'POST', body: b }),
   registerNetworkOrg: (id) => req(`/network-orgs/${id}/register`, { method: 'POST' }),
-  deleteNetworkOrg: (id) => req(`/network-orgs/${id}`, { method: 'DELETE' })
+  deleteNetworkOrg: (id) => req(`/network-orgs/${id}`, { method: 'DELETE' }),
+  secrets: (q, used) => req(`/secrets?${used !== undefined && used !== null ? `used=${used}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`),
+  saveSecret: (b) => req('/secrets', { method: 'POST', body: b }),
+  markSecretUsed: (id) => req(`/secrets/${id}/use`, { method: 'POST' }),
+  deleteSecret: (id) => req(`/secrets/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

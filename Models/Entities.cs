@@ -571,6 +571,30 @@ public class NetworkOrg : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Kho số bí mật (GS1 Secret Inventory — Inv_InventorySecret của InBrandCloud eTEM).
+/// Mỗi dòng = 1 số bí mật (SecretNo) gắn với một serial sản phẩm (SerialNo) để in lên tem
+/// cào/nhãn bảo mật — dùng cho cơ chế chống hàng giả: người tiêu dùng cào tem nhập số bí mật
+/// để đối chiếu. QR_SerialNo là mã QR in kèm số bí mật. FlagMap = đã ghép với serial sản phẩm
+/// chưa; FlagUsed = số bí mật đã được phát hành/dùng chưa (khi xuất excel phát hành tem → đánh dấu đã dùng).
+/// </summary>
+public class Secret : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string SerialNo { get; set; } = "";       // SerialNo — số serial sản phẩm gắn với số bí mật
+    public string? NetworkId { get; set; }             // NetworkID — môi trường/loại mạng áp dụng
+    public string? Mst { get; set; }                   // MST — mã số thuế / định danh tổ chức
+    public string? OrgCode { get; set; }               // OrgID — mã tổ chức nội bộ
+    public string? GenTimesNo { get; set; }            // GenTimesNo — lần sinh số (lô số bí mật)
+    public string SecretNo { get; set; } = "";        // SecretNo — số bí mật (duy nhất trong tenant)
+    public string? QR_SerialNo { get; set; }           // QR_SerialNo — mã QR in kèm số bí mật
+    public bool FlagMap { get; set; }                  // FlagMap — 0 chưa ghép serial / 1 đã ghép
+    public bool FlagUsed { get; set; }                 // FlagUsed — 0 chưa dùng / 1 đã phát hành-dùng
+    public string? Remark { get; set; }                // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

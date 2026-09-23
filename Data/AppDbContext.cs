@@ -36,6 +36,7 @@ public class AppDbContext : DbContext
     public DbSet<QueSync> QueSyncs => Set<QueSync>();
     public DbSet<MasterData> MasterDatas => Set<MasterData>();
     public DbSet<NetworkOrg> NetworkOrgs => Set<NetworkOrg>();
+    public DbSet<Secret> Secrets => Set<Secret>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -180,6 +181,11 @@ public class AppDbContext : DbContext
         b.Entity<NetworkOrg>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Mst }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<Secret>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.SecretNo }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

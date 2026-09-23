@@ -57,4 +57,8 @@ public static class Ui
         NetworkOrgStatus.Rejected => ("Bị từ chối", "danger", "bi-x-circle"),
         _ => (s.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) Secret(bool used) => used
+        ? ("Đã dùng", "success", "bi-check2-circle")
+        : ("Chưa dùng", "warning", "bi-hourglass-split");
 }

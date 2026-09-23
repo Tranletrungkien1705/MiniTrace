@@ -95,6 +95,11 @@ public interface ITraceService
     Task<(bool ok, string msg)> DeleteNetworkOrgAsync(int id);
     // Đăng ký tổ chức vào mạng lưới: cấp ELTSMSTId (nếu chưa có) + đẩy vào hàng đợi đồng bộ (Mst_NNT_QueSync)
     Task<(bool ok, string msg)> RegisterNetworkOrgAsync(int id);
+    // Kho số bí mật (Inv_InventorySecret của InBrandCloud eTEM) — số bí mật in lên tem cào chống giả
+    Task<List<Secret>> SecretsAsync(string? q, bool? used);
+    Task<(bool ok, string msg)> SaveSecretAsync(int id, string serialNo, string secretNo, string? qrSerialNo, string? networkId, string? mst, string? orgCode, string? genTimesNo, bool flagMap, string? remark);
+    Task<(bool ok, string msg)> DeleteSecretAsync(int id);
+    Task<(bool ok, string msg)> MarkSecretUsedAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1354,4 +1359,70 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
 
     // Sinh mã định danh ngoài mạng (tương đương Seq_GenObjCode_V1_GetX của InBrandCloud eTEM).
     private static string NewEltsMstId() => "ELTSMST." + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+
+    // ===== Kho số bí mật (Inv_InventorySecret của InBrandCloud eTEM) =====
+    // Mỗi dòng = 1 số bí mật (SecretNo) gắn với serial sản phẩm (SerialNo) để in lên tem cào chống giả.
+    public async Task<List<Secret>> SecretsAsync(string? q, bool? used)
+    {
+        var query = db.Secrets.AsQueryable();
+        if (used.HasValue) query = query.Where(s => s.FlagUsed == used.Value);
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(s => s.SecretNo.Contains(q) || s.SerialNo.Contains(q) || (s.QR_SerialNo != null && s.QR_SerialNo.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderBy(s => s.SecretNo).ToList();
+    }
+
+    // Lưu số bí mật. Áp quy tắc InBrandCloud (Inv_InventorySecret):
+    //  (1) Cần số serial sản phẩm (SerialNo) + số bí mật (SecretNo).
+    //  (2) SecretNo duy nhất trong tenant.
+    public async Task<(bool ok, string msg)> SaveSecretAsync(int id, string serialNo, string secretNo, string? qrSerialNo,
+        string? networkId, string? mst, string? orgCode, string? genTimesNo, bool flagMap, string? remark)
+    {
+        serialNo = (serialNo ?? "").Trim();
+        secretNo = (secretNo ?? "").Trim();
+        if (serialNo.Length == 0) return (false, "Cần số serial sản phẩm (SerialNo).");
+        if (secretNo.Length == 0) return (false, "Cần số bí mật (SecretNo).");
+        // (2) SecretNo duy nhất trong tenant.
+        if (await db.Secrets.AnyAsync(s => s.SecretNo == secretNo && s.Id != id)) return (false, $"Số bí mật '{secretNo}' đã tồn tại.");
+
+        Secret sec;
+        if (id > 0)
+        {
+            sec = await db.Secrets.FirstOrDefaultAsync(s => s.Id == id) ?? null!;
+            if (sec == null) return (false, "Không tìm thấy số bí mật.");
+        }
+        else { sec = new Secret(); db.Secrets.Add(sec); }
+
+        sec.SerialNo = serialNo; sec.SecretNo = secretNo;
+        sec.QR_SerialNo = string.IsNullOrWhiteSpace(qrSerialNo) ? null : qrSerialNo.Trim();
+        sec.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        sec.Mst = string.IsNullOrWhiteSpace(mst) ? null : mst.Trim();
+        sec.OrgCode = string.IsNullOrWhiteSpace(orgCode) ? null : orgCode.Trim();
+        sec.GenTimesNo = string.IsNullOrWhiteSpace(genTimesNo) ? null : genTimesNo.Trim();
+        sec.FlagMap = flagMap;
+        sec.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật số bí mật." : "Đã thêm số bí mật.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteSecretAsync(int id)
+    {
+        var sec = await db.Secrets.FirstOrDefaultAsync(s => s.Id == id);
+        if (sec == null) return (false, "Không tìm thấy số bí mật.");
+        db.Secrets.Remove(sec);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa số bí mật.");
+    }
+
+    // Phát hành/dùng số bí mật (tương đương WA_Inv_InventorySecret_UpdateFlagUsed của InBrandCloud eTEM).
+    // Áp quy tắc: số bí mật phải tồn tại và chưa dùng; đánh dấu FlagUsed = true.
+    public async Task<(bool ok, string msg)> MarkSecretUsedAsync(int id)
+    {
+        var sec = await db.Secrets.FirstOrDefaultAsync(s => s.Id == id);
+        if (sec == null) return (false, "Không tìm thấy số bí mật.");
+        if (sec.FlagUsed) return (false, $"Số bí mật '{sec.SecretNo}' đã được phát hành/dùng.");
+        sec.FlagUsed = true;
+        await db.SaveChangesAsync();
+        return (true, $"Đã đánh dấu số bí mật '{sec.SecretNo}' là đã dùng.");
+    }
 }

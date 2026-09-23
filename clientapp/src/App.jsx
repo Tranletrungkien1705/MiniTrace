@@ -34,7 +34,8 @@ function Layout() {
         <NavLink to="/cartons">Đóng thùng</NavLink>
         <NavLink to="/que-syncs">Hàng đợi đồng bộ</NavLink>
         <NavLink to="/master-datas">Dữ liệu gốc</NavLink>
-        <NavLink to="/network-orgs">Tổ chức mạng</NavLink></nav>
+        <NavLink to="/network-orgs">Tổ chức mạng</NavLink>
+        <NavLink to="/secrets">Số bí mật</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1346,6 +1347,75 @@ function NetworkOrgForm({ org, onClose, onSaved }) {
   )
 }
 
+function Secrets() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [used, setUsed] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.secrets(q, used === '' ? undefined : used === 'true').then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (s) => {
+    if (!window.confirm(`Xóa số bí mật ${s.secretNo}?`)) return
+    try { const r = await api.deleteSecret(s.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  const use = async (s) => {
+    try { const r = await api.markSecretUsed(s.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Số bí mật</h1><div className="sp" />
+        <input style={{ maxWidth: 200 }} placeholder="Tìm serial / số bí mật / QR…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <select style={{ maxWidth: 150 }} value={used} onChange={e => { setUsed(e.target.value); setTimeout(load, 0) }}>
+          <option value="">Tất cả</option><option value="false">Chưa dùng</option><option value="true">Đã dùng</option></select>
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, serialNo: '', secretNo: '', qrSerialNo: '', networkId: '', mst: '', orgCode: '', genTimesNo: '', flagMap: false, remark: '' })}>+ Thêm số bí mật</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Kho số bí mật (GS1 Secret Inventory — Inv_InventorySecret) — số bí mật in lên tem cào chống giả, gắn với serial sản phẩm. Phát hành/dùng sẽ đánh dấu FlagUsed.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Serial</th><th>Số bí mật</th><th>QR</th><th>Lần sinh</th><th>Ghép serial</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(s => (
+            <tr key={s.id}><td style={{ fontFamily: 'monospace' }}>{s.serialNo}</td>
+              <td style={{ fontFamily: 'monospace' }}>{s.secretNo}</td>
+              <td style={{ fontFamily: 'monospace' }}>{s.qrSerialNo || '—'}</td>
+              <td>{s.genTimesNo || '—'}</td>
+              <td><Badge text={s.flagMap ? 'Đã ghép' : 'Chưa ghép'} css={s.flagMap ? 'success' : 'secondary'} /></td>
+              <td><Badge text={s.flagUsed ? 'Đã dùng' : 'Chưa dùng'} css={s.flagUsed ? 'success' : 'warning'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                {!s.flagUsed && <button className="btn ghost sm" onClick={() => use(s)}>Phát hành</button>}{' '}
+                <button className="btn ghost sm" onClick={() => setEdit(s)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(s)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có số bí mật.</td></tr>}</tbody></table>
+      </div>
+      {edit && <SecretForm secret={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function SecretForm({ secret, onClose, onSaved }) {
+  const [f, setF] = useState({ ...secret }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveSecret({ id: f.id, serialNo: f.serialNo, secretNo: f.secretNo, qrSerialNo: f.qrSerialNo, networkId: f.networkId, mst: f.mst, orgCode: f.orgCode, genTimesNo: f.genTimesNo, flagMap: f.flagMap, remark: f.remark }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa số bí mật ${f.secretNo}` : 'Thêm số bí mật'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Số serial sản phẩm (SerialNo) *"><input value={f.serialNo} onChange={e => up('serialNo', e.target.value)} placeholder="vd: P000001" /></Field>
+        <Field label="Số bí mật (SecretNo) *"><input value={f.secretNo} onChange={e => up('secretNo', e.target.value)} placeholder="vd: SEC000001" /></Field></div>
+      <div className="row"><Field label="Mã QR in kèm (QR_SerialNo)"><input value={f.qrSerialNo || ''} onChange={e => up('qrSerialNo', e.target.value)} /></Field>
+        <Field label="Lần sinh số (GenTimesNo)"><input value={f.genTimesNo || ''} onChange={e => up('genTimesNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Loại mạng (NetworkID)"><select value={f.networkId || ''} onChange={e => up('networkId', e.target.value)}>
+          <option value="">—</option>{CTE_NET.map(n => <option key={n} value={n}>{n}</option>)}</select></Field>
+        <Field label="Mã số thuế / định danh (MST)"><input value={f.mst || ''} onChange={e => up('mst', e.target.value)} /></Field></div>
+      <Field label="Mã tổ chức nội bộ (OrgID)"><input value={f.orgCode || ''} onChange={e => up('orgCode', e.target.value)} /></Field>
+      <Field label="Ghi chú"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagMap} onChange={e => up('flagMap', e.target.checked)} /> Đã ghép với serial sản phẩm</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần SerialNo + SecretNo; SecretNo duy nhất trong tenant.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1370,6 +1440,7 @@ export default function App() {
         <Route path="que-syncs" element={<QueSyncs />} />
         <Route path="master-datas" element={<MasterDatas />} />
         <Route path="network-orgs" element={<NetworkOrgs />} />
+        <Route path="secrets" element={<Secrets />} />
       </Route>
     </Routes>
   )

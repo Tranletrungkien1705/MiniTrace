@@ -549,6 +549,36 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Kho số bí mật (Inv_InventorySecret của InBrandCloud eTEM) =====
+    [HttpGet("secrets")]
+    public async Task<IActionResult> Secrets([FromQuery] string? q, [FromQuery] bool? used)
+        => Ok((await svc.SecretsAsync(q, used)).Select(s => new
+        {
+            s.Id, s.SerialNo, s.SecretNo, s.QR_SerialNo, s.NetworkId, s.Mst, s.OrgCode, s.GenTimesNo,
+            s.FlagMap, s.FlagUsed, s.Remark, s.CreatedAt
+        }));
+
+    [HttpPost("secrets")]
+    public async Task<IActionResult> SaveSecret([FromBody] SecretReq r)
+    {
+        var (ok, msg) = await svc.SaveSecretAsync(r.Id, r.SerialNo ?? "", r.SecretNo ?? "", r.QR_SerialNo, r.NetworkId, r.Mst, r.OrgCode, r.GenTimesNo, r.FlagMap, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("secrets/{id:int}/use")]
+    public async Task<IActionResult> MarkSecretUsed(int id)
+    {
+        var (ok, msg) = await svc.MarkSecretUsedAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("secrets/{id:int}")]
+    public async Task<IActionResult> DeleteSecret(int id)
+    {
+        var (ok, msg) = await svc.DeleteSecretAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -601,4 +631,5 @@ public class QueSyncReq { public int Id { get; set; } public string? NetworkId {
 public class QueSyncMarkReq { public int Status { get; set; } public string? ErrorDetail { get; set; } }
 public class MasterDataReq { public int Id { get; set; } public string? Code { get; set; } public string? NetworkId { get; set; } public string? TableName { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
 public class NetworkOrgReq { public int Id { get; set; } public string? Mst { get; set; } public string? FullName { get; set; } public string? NetworkType { get; set; } public string? OrgCode { get; set; } public string? Address { get; set; } public string? Mobile { get; set; } public string? ContactName { get; set; } public string? ContactEmail { get; set; } public string? Gln { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
+public class SecretReq { public int Id { get; set; } public string? SerialNo { get; set; } public string? SecretNo { get; set; } public string? QR_SerialNo { get; set; } public string? NetworkId { get; set; } public string? Mst { get; set; } public string? OrgCode { get; set; } public string? GenTimesNo { get; set; } public bool FlagMap { get; set; } public string? Remark { get; set; } }
 
