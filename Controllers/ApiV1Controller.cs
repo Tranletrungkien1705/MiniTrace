@@ -714,6 +714,30 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục mạng lưới / môi trường (MstSv_Mst_Network của InBrandCloud eTEM) =====
+    [HttpGet("network-masters")]
+    public async Task<IActionResult> NetworkMasters([FromQuery] string? q)
+        => Ok((await svc.NetworkMastersAsync(q)).Select(n => new
+        {
+            n.Id, n.NetworkID, n.NetworkName, n.GroupNetworkID, n.CoreAddr, n.PingAddr, n.XSysAddr,
+            n.WSUrlAddr, n.WSUrlAddrNew, n.DBUrlAddr, n.Mst, n.OrgIdSln, n.MinVersion, n.Active, n.Remark, n.CreatedAt
+        }));
+
+    [HttpPost("network-masters")]
+    public async Task<IActionResult> SaveNetworkMaster([FromBody] NetworkMasterReq r)
+    {
+        var (ok, msg) = await svc.SaveNetworkMasterAsync(r.Id, r.NetworkID ?? "", r.NetworkName ?? "", r.GroupNetworkID,
+            r.CoreAddr, r.PingAddr, r.XSysAddr, r.WSUrlAddr, r.WSUrlAddrNew, r.DBUrlAddr, r.Mst, r.OrgIdSln, r.MinVersion, r.Active, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("network-masters/{id:int}")]
+    public async Task<IActionResult> DeleteNetworkMaster(int id)
+    {
+        var (ok, msg) = await svc.DeleteNetworkMasterAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -828,5 +852,24 @@ public class ManufacturedIdReq
     public int MobileIndex { get; set; }
     public bool FlagMap { get; set; }
     public int Status { get; set; }
+    public string? Remark { get; set; }
+}
+
+public class NetworkMasterReq
+{
+    public int Id { get; set; }
+    public string? NetworkID { get; set; }
+    public string? NetworkName { get; set; }
+    public string? GroupNetworkID { get; set; }
+    public string? CoreAddr { get; set; }
+    public string? PingAddr { get; set; }
+    public string? XSysAddr { get; set; }
+    public string? WSUrlAddr { get; set; }
+    public string? WSUrlAddrNew { get; set; }
+    public string? DBUrlAddr { get; set; }
+    public string? Mst { get; set; }
+    public string? OrgIdSln { get; set; }
+    public string? MinVersion { get; set; }
+    public bool Active { get; set; } = true;
     public string? Remark { get; set; }
 }

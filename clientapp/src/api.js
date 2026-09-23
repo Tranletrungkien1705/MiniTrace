@@ -97,7 +97,10 @@ export const api = {
   deleteConfigColumnSearch: (id) => req(`/config-column-searches/${id}`, { method: 'DELETE' }),
   manufacturedIds: (q) => req(`/manufactured-ids${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveManufacturedId: (b) => req('/manufactured-ids', { method: 'POST', body: b }),
-  deleteManufacturedId: (id) => req(`/manufactured-ids/${id}`, { method: 'DELETE' })
+  deleteManufacturedId: (id) => req(`/manufactured-ids/${id}`, { method: 'DELETE' }),
+  networkMasters: (q) => req(`/network-masters${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveNetworkMaster: (b) => req('/network-masters', { method: 'POST', body: b }),
+  deleteNetworkMaster: (id) => req(`/network-masters/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

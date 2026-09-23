@@ -42,6 +42,7 @@ public class AppDbContext : DbContext
     public DbSet<ProductId> ProductIds => Set<ProductId>();
     public DbSet<ConfigColumnSearch> ConfigColumnSearches => Set<ConfigColumnSearch>();
     public DbSet<ManufacturedId> ManufacturedIds => Set<ManufacturedId>();
+    public DbSet<NetworkMaster> NetworkMasters => Set<NetworkMaster>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -217,6 +218,11 @@ public class AppDbContext : DbContext
         b.Entity<ManufacturedId>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();   // mỗi tem chỉ được ghi nhận sản xuất 1 lần
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<NetworkMaster>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.NetworkID }).IsUnique();   // mã mạng duy nhất trong tenant
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

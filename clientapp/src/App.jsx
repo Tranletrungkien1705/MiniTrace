@@ -40,7 +40,8 @@ function Layout() {
         <NavLink to="/stamp-pairs">Cặp tem</NavLink>
         <NavLink to="/product-ids">Định danh sản phẩm</NavLink>
         <NavLink to="/config-column-searches">Cấu hình trường tra cứu</NavLink>
-        <NavLink to="/manufactured-ids">Dãy sản xuất</NavLink></nav>
+        <NavLink to="/manufactured-ids">Dãy sản xuất</NavLink>
+        <NavLink to="/network-masters">Mạng lưới</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1759,6 +1760,75 @@ function ManufacturedIdForm({ row, onClose, onSaved }) {
   )
 }
 
+function NetworkMasters() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.networkMasters(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (n) => {
+    if (!window.confirm(`Xóa mạng lưới ${n.networkID}?`)) return
+    try { const r = await api.deleteNetworkMaster(n.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Mạng lưới / Môi trường</h1><div className="sp" />
+        <input style={{ maxWidth: 240 }} placeholder="Tìm mã / tên mạng / MST…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, networkID: '', networkName: '', groupNetworkID: '', coreAddr: '', pingAddr: '', xSysAddr: '', wsUrlAddr: '', wsUrlAddrNew: '', dbUrlAddr: '', mst: '', orgIdSln: '', minVersion: '', active: true })}>+ Thêm mạng</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục mạng lưới / môi trường (GS1 MstSv_Mst_Network) — "từ điển" các mạng mà hệ thống truy xuất dùng để định tuyến đồng bộ dữ liệu lên máy chủ eTEM/ELTS (mã mạng, tên mạng, địa chỉ Web API/CSDL, tổ chức sở hữu).</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã mạng (NetworkID)</th><th>Tên mạng</th><th>Nhóm</th><th>Địa chỉ Web API</th><th>MST</th><th>Phiên bản</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(n => (
+            <tr key={n.id}><td style={{ fontFamily: 'monospace' }}>{n.networkID}</td><td>{n.networkName}</td>
+              <td>{n.groupNetworkID || '—'}</td><td className="muted" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.wsUrlAddr || '—'}</td>
+              <td>{n.mst || '—'}</td><td className="muted">{n.minVersion || '—'}</td>
+              <td><Badge text={n.active ? 'Đang dùng' : 'Ngưng'} css={n.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(n)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(n)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>Chưa có mạng lưới.</td></tr>}</tbody></table>
+      </div>
+      {edit && <NetworkMasterForm row={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function NetworkMasterForm({ row, onClose, onSaved }) {
+  const [f, setF] = useState({
+    id: row.id || 0, networkID: row.networkID || '', networkName: row.networkName || '', groupNetworkID: row.groupNetworkID || '',
+    coreAddr: row.coreAddr || '', pingAddr: row.pingAddr || '', xSysAddr: row.xSysAddr || '', wsUrlAddr: row.wsUrlAddr || '',
+    wsUrlAddrNew: row.wsUrlAddrNew || '', dbUrlAddr: row.dbUrlAddr || '', mst: row.mst || '', orgIdSln: row.orgIdSln || '',
+    minVersion: row.minVersion || '', active: row.active ?? true
+  })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveNetworkMaster(f); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa mạng lưới ${f.networkID}` : 'Thêm mạng lưới / môi trường'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã mạng (NetworkID) *"><input value={f.networkID} onChange={e => up('networkID', e.target.value)} placeholder="vd: 4341766000" /></Field>
+        <Field label="Tên mạng (NetworkName) *"><input value={f.networkName} onChange={e => up('networkName', e.target.value)} placeholder="vd: Mạng sản xuất chính" /></Field></div>
+      <div className="row"><Field label="Nhóm mạng (GroupNetworkID)"><input value={f.groupNetworkID} onChange={e => up('groupNetworkID', e.target.value)} placeholder="vd: REAL" /></Field>
+        <Field label="MST (tổ chức sở hữu)"><input value={f.mst} onChange={e => up('mst', e.target.value)} placeholder="vd: MST-NXSX-ST" /></Field></div>
+      <Field label="Địa chỉ Web API (WSUrlAddr)"><input value={f.wsUrlAddr} onChange={e => up('wsUrlAddr', e.target.value)} placeholder="https://…/WA/" /></Field>
+      <Field label="Địa chỉ Web API mới (WSUrlAddrNew)"><input value={f.wsUrlAddrNew} onChange={e => up('wsUrlAddrNew', e.target.value)} placeholder="https://…/New.WA/" /></Field>
+      <div className="row"><Field label="Địa chỉ Core (CoreAddr)"><input value={f.coreAddr} onChange={e => up('coreAddr', e.target.value)} /></Field>
+        <Field label="Địa chỉ Ping (PingAddr)"><input value={f.pingAddr} onChange={e => up('pingAddr', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Địa chỉ hệ thống ngoài (XSysAddr)"><input value={f.xSysAddr} onChange={e => up('xSysAddr', e.target.value)} /></Field>
+        <Field label="Địa chỉ CSDL (DBUrlAddr)"><input value={f.dbUrlAddr} onChange={e => up('dbUrlAddr', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Mã tổ chức giải pháp (OrgIDSln)"><input value={f.orgIdSln} onChange={e => up('orgIdSln', e.target.value)} /></Field>
+        <Field label="Phiên bản nhỏ nhất (MinVersion)"><input value={f.minVersion} onChange={e => up('minVersion', e.target.value)} placeholder="vd: 20201209" /></Field></div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang hoạt động</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã mạng + tên mạng; mã mạng duy nhất trong tenant.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1789,6 +1859,7 @@ export default function App() {
         <Route path="product-ids" element={<ProductIds />} />
         <Route path="config-column-searches" element={<ConfigColumnSearches />} />
         <Route path="manufactured-ids" element={<ManufacturedIds />} />
+        <Route path="network-masters" element={<NetworkMasters />} />
       </Route>
     </Routes>
   )

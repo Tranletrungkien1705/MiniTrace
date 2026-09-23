@@ -121,6 +121,10 @@ public interface ITraceService
     Task<List<ManufacturedId>> ManufacturedIdsAsync(string? q);
     Task<(bool ok, string msg)> SaveManufacturedIdAsync(int id, string idNo, string iManufacturedIDNo, string? networkId, string? boxNo, string? lineCode, string? lineRootCode, string? shiftCode, string? productionLotNo, string? refNoLine, string? productCode, string? invCode, DateTime? manufactureStartDTime, DateTime? mobileScanDTime, int mobileIndex, bool flagMap, ManufacturedStatus status, string? remark);
     Task<(bool ok, string msg)> DeleteManufacturedIdAsync(int id);
+    // Danh mục mạng lưới / môi trường (MstSv_Mst_Network của InBrandCloud eTEM)
+    Task<List<NetworkMaster>> NetworkMastersAsync(string? q);
+    Task<(bool ok, string msg)> SaveNetworkMasterAsync(int id, string networkID, string networkName, string? groupNetworkID, string? coreAddr, string? pingAddr, string? xSysAddr, string? wsUrlAddr, string? wsUrlAddrNew, string? dbUrlAddr, string? mst, string? orgIdSln, string? minVersion, bool active, string? remark);
+    Task<(bool ok, string msg)> DeleteNetworkMasterAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1741,5 +1745,62 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.ManufacturedIds.Remove(m);
         await db.SaveChangesAsync();
         return (true, "Đã xóa bản ghi sản xuất.");
+    }
+
+    // ===== Danh mục mạng lưới / môi trường (MstSv_Mst_Network của InBrandCloud eTEM) =====
+    // "Từ điển" các mạng lưới (môi trường) dùng để định tuyến đồng bộ dữ liệu truy xuất lên eTEM/ELTS.
+    public async Task<List<NetworkMaster>> NetworkMastersAsync(string? q)
+    {
+        var query = db.NetworkMasters.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(n => n.NetworkID.Contains(q) || n.NetworkName.Contains(q) || (n.Mst != null && n.Mst.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderBy(n => n.NetworkID).ToList();
+    }
+
+    // Lưu mạng lưới. Áp quy tắc InBrandCloud (MstSv_Mst_Network_Create + MstSv_Mst_Network_CheckDB):
+    //  (1) Cần mã mạng (NetworkID) — tương đương MstSv_Mst_Network_Create_InvalidNetworkID.
+    //  (2) Cần tên mạng (NetworkName) — tương đương MstSv_Mst_Network_Create_InvalidNetworkName.
+    //  (3) Mã mạng duy nhất trong tenant — tương đương MstSv_Mst_Network_CheckDB (NetworkExist).
+    public async Task<(bool ok, string msg)> SaveNetworkMasterAsync(int id, string networkID, string networkName, string? groupNetworkID, string? coreAddr, string? pingAddr, string? xSysAddr, string? wsUrlAddr, string? wsUrlAddrNew, string? dbUrlAddr, string? mst, string? orgIdSln, string? minVersion, bool active, string? remark)
+    {
+        networkID = (networkID ?? "").Trim();
+        networkName = (networkName ?? "").Trim();
+        if (networkID.Length == 0) return (false, "Cần mã mạng (NetworkID).");
+        if (networkName.Length == 0) return (false, "Cần tên mạng (NetworkName).");
+        // Mã mạng phải duy nhất trong tenant.
+        if (await db.NetworkMasters.AnyAsync(n => n.NetworkID == networkID && n.Id != id)) return (false, $"Mã mạng '{networkID}' đã tồn tại.");
+
+        NetworkMaster nm;
+        if (id > 0)
+        {
+            nm = await db.NetworkMasters.FirstOrDefaultAsync(n => n.Id == id) ?? null!;
+            if (nm == null) return (false, "Không tìm thấy mạng lưới.");
+        }
+        else { nm = new NetworkMaster(); db.NetworkMasters.Add(nm); }
+
+        nm.NetworkID = networkID; nm.NetworkName = networkName;
+        nm.GroupNetworkID = string.IsNullOrWhiteSpace(groupNetworkID) ? null : groupNetworkID.Trim();
+        nm.CoreAddr = string.IsNullOrWhiteSpace(coreAddr) ? null : coreAddr.Trim();
+        nm.PingAddr = string.IsNullOrWhiteSpace(pingAddr) ? null : pingAddr.Trim();
+        nm.XSysAddr = string.IsNullOrWhiteSpace(xSysAddr) ? null : xSysAddr.Trim();
+        nm.WSUrlAddr = string.IsNullOrWhiteSpace(wsUrlAddr) ? null : wsUrlAddr.Trim();
+        nm.WSUrlAddrNew = string.IsNullOrWhiteSpace(wsUrlAddrNew) ? null : wsUrlAddrNew.Trim();
+        nm.DBUrlAddr = string.IsNullOrWhiteSpace(dbUrlAddr) ? null : dbUrlAddr.Trim();
+        nm.Mst = string.IsNullOrWhiteSpace(mst) ? null : mst.Trim();
+        nm.OrgIdSln = string.IsNullOrWhiteSpace(orgIdSln) ? null : orgIdSln.Trim();
+        nm.MinVersion = string.IsNullOrWhiteSpace(minVersion) ? null : minVersion.Trim();
+        nm.Active = active;
+        nm.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật mạng lưới." : "Đã thêm mạng lưới.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteNetworkMasterAsync(int id)
+    {
+        var nm = await db.NetworkMasters.FirstOrDefaultAsync(n => n.Id == id);
+        if (nm == null) return (false, "Không tìm thấy mạng lưới.");
+        db.NetworkMasters.Remove(nm);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa mạng lưới.");
     }
 }

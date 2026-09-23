@@ -808,3 +808,32 @@ public class ManufacturedId : IOrgOwned
     public string? Remark { get; set; }                 // Remark — ghi chú
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Danh mục mạng lưới / môi trường (GS1 Network Master — MstSv_Mst_Network của InBrandCloud eTEM).
+/// "Từ điển" các mạng lưới (môi trường) mà hệ thống truy xuất dùng để định tuyến đồng bộ dữ liệu
+/// lên máy chủ eTEM/ELTS: mỗi dòng gắn một mã mạng (NetworkID) với tên mạng (NetworkName), nhóm mạng
+/// (GroupNetworkID), các địa chỉ kết nối (CoreAddr/PingAddr/XSysAddr/WSUrlAddr/DBUrlAddr) và tổ chức
+/// sở hữu (MST). Khi một tổ chức đăng ký tham gia mạng (Mst_NNT), hệ thống tra MstSv_OrgInNetwork để
+/// tìm NetworkID của tổ chức rồi lấy WSUrlAddr từ danh mục này để gọi API đồng bộ (doc 09 §5).
+/// </summary>
+public class NetworkMaster : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string NetworkID { get; set; } = "";      // NetworkID — mã mạng/môi trường (duy nhất trong tenant)
+    public string NetworkName { get; set; } = "";    // NetworkName — tên mạng/môi trường
+    public string? GroupNetworkID { get; set; }      // GroupNetworkID — nhóm mạng
+    public string? CoreAddr { get; set; }            // CoreAddr — địa chỉ core
+    public string? PingAddr { get; set; }            // PingAddr — địa chỉ ping/health
+    public string? XSysAddr { get; set; }            // XSysAddr — địa chỉ hệ thống ngoài
+    public string? WSUrlAddr { get; set; }           // WSUrlAddr — địa chỉ Web API đồng bộ
+    public string? WSUrlAddrNew { get; set; }        // WSUrlAddrNew — địa chỉ Web API mới
+    public string? DBUrlAddr { get; set; }           // DBUrlAddr — địa chỉ CSDL
+    public string? Mst { get; set; }                 // MST — mã số thuế / định danh tổ chức sở hữu
+    public string? OrgIdSln { get; set; }            // OrgIDSln — mã tổ chức giải pháp
+    public string? MinVersion { get; set; }          // MinVersion — phiên bản nhỏ nhất còn hỗ trợ
+    public bool Active { get; set; } = true;         // FlagActive — đang hoạt động
+    public string? Remark { get; set; }              // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}

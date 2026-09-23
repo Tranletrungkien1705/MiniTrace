@@ -404,6 +404,24 @@ public static class Seeder
                     MobileIndex = 1, FlagMap = true, Status = ManufacturedStatus.InProgress, Remark = "Tem P000003 đang sản xuất trên dây chuyền A2 ca 2" });
             await db.SaveChangesAsync();
         }
+
+        // Danh mục mạng lưới / môi trường (MstSv_Mst_Network của InBrandCloud eTEM) — "từ điển" mạng dùng để định tuyến đồng bộ eTEM/ELTS.
+        if (!await db.NetworkMasters.AnyAsync())
+        {
+            db.NetworkMasters.AddRange(
+                new NetworkMaster { NetworkID = "4341766000", NetworkName = "Mạng sản xuất chính (Real)", GroupNetworkID = "REAL",
+                    CoreAddr = "https://core.inos.vn", PingAddr = "https://ping.inos.vn", XSysAddr = "https://xsys.inos.vn",
+                    WSUrlAddr = "https://syscm01.inos.vn/idocNet.Real.Skycic.InBrand.V20.4341766000.WA/",
+                    WSUrlAddrNew = "https://syscm01.inos.vn/idocNet.Real.Skycic.InBrand.V20.4341766000.New.WA/",
+                    DBUrlAddr = "192.168.1.228\\SQLSV2016", Mst = "MST-NXSX-ST", OrgIdSln = "ORG-NXSX-ST", MinVersion = "20201209", Active = true },
+                new NetworkMaster { NetworkID = "9452386000", NetworkName = "Mạng Bình Điền - Ninh Bình", GroupNetworkID = "REAL",
+                    WSUrlAddr = "https://syscm01.inos.vn/idocNet.Real.Skycic.InBrand.V20.9452386000.WA/",
+                    Mst = "2700664419", MinVersion = "20201209", Active = true },
+                new NetworkMaster { NetworkID = "TEST0001", NetworkName = "Mạng kiểm thử (Test)", GroupNetworkID = "TEST",
+                    WSUrlAddr = "https://syscm-test.inos.vn/idocNet.Test.Skycic.InBrand.V20.TEST0001.WA/",
+                    Mst = "MST-DL-HCM", MinVersion = "20210611", Active = false, Remark = "Môi trường test — tạm ngưng" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -417,7 +435,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",
