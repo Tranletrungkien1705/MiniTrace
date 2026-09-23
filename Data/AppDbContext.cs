@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
     public DbSet<TraceEvent> Events => Set<TraceEvent>();
     public DbSet<Verification> Verifications => Set<Verification>();
     public DbSet<Cte> Ctes => Set<Cte>();
+    public DbSet<Kde> Kdes => Set<Kde>();
+    public DbSet<CteKde> CteKdes => Set<CteKde>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -41,6 +43,16 @@ public class AppDbContext : DbContext
         b.Entity<Cte>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<Kde>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<CteKde>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.CteCode, x.KdeCode }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

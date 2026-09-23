@@ -79,6 +79,44 @@ public class Cte : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Danh mục Thành phần dữ liệu trọng yếu (GS1 Key Data Element — KDE).
+/// Tương đương bảng Mst_KDE của InBrandCloud eTEM: "từ điển" các trường dữ liệu
+/// mà chuỗi cung ứng phải thu thập tại mỗi sự kiện truy xuất (vd: Số lô, Ngày sản xuất,
+/// Hạn sử dụng, Số serial, Nhiệt độ bảo quản…).
+/// </summary>
+public class Kde : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // KDECode — mã thành phần (vd: LOT_NO)
+    public string Description { get; set; } = "";  // KDEDesc — mô tả thành phần
+    public string? DataType { get; set; }           // DataType — kiểu dữ liệu (Text/Number/Date/List)
+    public string? RefNoList { get; set; }          // RefNoList — danh sách giá trị để chọn khi tạo sự kiện
+    public string? NetworkType { get; set; }        // TplNWType — loại tổ chức áp dụng
+    public bool FlagList { get; set; }              // FlagList — cờ danh sách (chọn 1 giá trị)
+    public bool FlagQuery { get; set; }             // FlagQuery — cờ truy vấn
+    public bool Active { get; set; } = true;        // FlagActive
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
+/// <summary>
+/// Ánh xạ Sự kiện trọng yếu ↔ Thành phần dữ liệu (GS1 CTE_KDE).
+/// Tương đương bảng CTE_KDE của InBrandCloud eTEM: định nghĩa mỗi sự kiện (CTE)
+/// cần thu thập những thành phần dữ liệu (KDE) nào, và thành phần nào là "Key".
+/// </summary>
+public class CteKde : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string CteCode { get; set; } = "";      // CTECode — mã sự kiện
+    public string KdeCode { get; set; } = "";      // KDECode — mã thành phần dữ liệu
+    public string? NetworkType { get; set; }        // TplNWType — loại tổ chức
+    public bool FlagOsOrgView { get; set; }         // FlagOSOrgView — cho phép user ngoài org xem
+    public bool FlagKey { get; set; }               // FlagKey — KDE là Key (bắt buộc) của sự kiện
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

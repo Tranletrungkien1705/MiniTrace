@@ -22,7 +22,8 @@ function Layout() {
       <nav className="nav"><span className="brand">🔗 MiniTrace</span>
         <NavLink to="/" end>Tổng quan</NavLink><NavLink to="/units">Đơn vị truy xuất</NavLink>
         <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink>
-        <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink></nav>
+        <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink>
+        <NavLink to="/kdes">Thành phần (KDE)</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -290,6 +291,102 @@ function CteForm({ cte, onClose, onSaved }) {
   )
 }
 
+const KDE_TYPES = ['Text', 'Number', 'Date', 'List']
+
+function Kdes() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const [mapFor, setMapFor] = useState(null)
+  const load = () => api.kdes(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (k) => {
+    if (!window.confirm(`Xóa thành phần ${k.code}?`)) return
+    try { const r = await api.deleteKde(k.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Thành phần dữ liệu (KDE)</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / mô tả…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, code: '', description: '', dataType: 'Text', refNoList: '', networkType: '', flagList: false, flagQuery: false, active: true })}>+ Thêm thành phần</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục thành phần dữ liệu trọng yếu (GS1 Key Data Element) — "từ điển" các trường dữ liệu phải thu thập tại mỗi sự kiện truy xuất.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (KDECode)</th><th>Mô tả</th><th>Kiểu</th><th>Loại mạng</th><th>Cờ</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(k => (
+            <tr key={k.id}><td style={{ fontFamily: 'monospace' }}>{k.code}</td><td>{k.description}</td>
+              <td>{k.dataType || '—'}</td><td>{k.networkType || '—'}</td>
+              <td>{k.flagList ? <Badge text="Danh sách" css="info" /> : null}{k.flagQuery ? <Badge text="Truy vấn" css="secondary" /> : null}</td>
+              <td><Badge text={k.active ? 'Đang dùng' : 'Ngưng'} css={k.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setMapFor(k)}>Ánh xạ</button>{' '}
+                <button className="btn ghost sm" onClick={() => setEdit(k)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(k)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có thành phần.</td></tr>}</tbody></table>
+      </div>
+      {edit && <KdeForm kde={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+      {mapFor && <CteKdeMap kde={mapFor} onClose={() => setMapFor(null)} />}
+    </>
+  )
+}
+
+function KdeForm({ kde, onClose, onSaved }) {
+  const [f, setF] = useState({ ...kde }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveKde({ id: f.id, code: f.code, description: f.description, dataType: f.dataType, refNoList: f.refNoList, networkType: f.networkType, flagList: f.flagList, flagQuery: f.flagQuery, active: f.active }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa thành phần ${f.code}` : 'Thêm thành phần dữ liệu'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã thành phần (KDECode) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: LOT_NO" /></Field>
+        <Field label="Kiểu dữ liệu"><select value={f.dataType || ''} onChange={e => up('dataType', e.target.value)}>
+          <option value="">—</option>{KDE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}</select></Field></div>
+      <Field label="Mô tả *"><input value={f.description} onChange={e => up('description', e.target.value)} /></Field>
+      <div className="row"><Field label="Loại mạng"><select value={f.networkType || ''} onChange={e => up('networkType', e.target.value)}>
+          <option value="">—</option>{CTE_NET.map(n => <option key={n} value={n}>{n}</option>)}</select></Field>
+        <Field label="Danh sách giá trị (RefNoList)"><input value={f.refNoList || ''} onChange={e => up('refNoList', e.target.value)} placeholder="Đạt;Không đạt" /></Field></div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagList} onChange={e => up('flagList', e.target.checked)} /> Loại danh sách (chọn 1 giá trị)</label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagQuery} onChange={e => up('flagQuery', e.target.checked)} /> Dùng để truy vấn</label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang sử dụng</label>
+      <div style={{ marginTop: 16 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
+function CteKdeMap({ kde, onClose }) {
+  const [ctes, setCtes] = useState([]); const [sel, setSel] = useState(''); const [items, setItems] = useState([]); const [msg, setMsg] = useState(null)
+  useEffect(() => { api.ctes().then(r => { setCtes(r.data); if (r.data[0]) setSel(r.data[0].code) }) }, [])
+  const loadMap = (code) => api.cteKdes(code).then(r => setItems(r.data.map(m => ({ kdeCode: m.kdeCode, flagKey: m.flagKey, flagOsOrgView: m.flagOsOrgView }))))
+  useEffect(() => { if (sel) loadMap(sel) }, [sel])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const has = items.some(i => i.kdeCode === kde.code)
+  const toggle = () => setItems(has ? items.filter(i => i.kdeCode !== kde.code) : [...items, { kdeCode: kde.code, flagKey: false, flagOsOrgView: false }])
+  const setFlag = (key, val) => setItems(items.map(i => i.kdeCode === kde.code ? { ...i, [key]: val } : i))
+  const save = async () => {
+    try { const r = await api.saveCteKdes({ cteCode: sel, items }); flash(true, r.data.msg) }
+    catch (e) { flash(false, e.message) }
+  }
+  const cur = items.find(i => i.kdeCode === kde.code)
+  return (
+    <Modal title={`Ánh xạ ${kde.code} vào sự kiện`} onClose={onClose}>
+      <Flash msg={msg} />
+      <Field label="Sự kiện (CTE)"><select value={sel} onChange={e => setSel(e.target.value)}>{ctes.map(c => <option key={c.id} value={c.code}>{c.code} · {c.description}</option>)}</select></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={has} onChange={toggle} /> Sự kiện này cần thu thập <b>{kde.code}</b></label>
+      {has && <div className="row" style={{ marginTop: 8 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={cur.flagKey} onChange={e => setFlag('flagKey', e.target.checked)} /> Là Key (bắt buộc)</label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}><input type="checkbox" style={{ width: 'auto' }} checked={cur.flagOsOrgView} onChange={e => setFlag('flagOsOrgView', e.target.checked)} /> Cho user ngoài org xem</label></div>}
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mỗi sự kiện tối đa 1 thành phần loại danh sách và phải có ít nhất 1 thành phần là Key.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu ánh xạ</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -300,6 +397,7 @@ export default function App() {
         <Route path="trace" element={<Trace />} />
         <Route path="verify" element={<Verify />} />
         <Route path="ctes" element={<Ctes />} />
+        <Route path="kdes" element={<Kdes />} />
       </Route>
     </Routes>
   )

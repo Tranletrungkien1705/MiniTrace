@@ -24,11 +24,21 @@ public interface ITraceService
     Task<List<Cte>> CtesAsync(string? q);
     Task<(bool ok, string msg)> SaveCteAsync(int id, string code, string description, string? networkType, string? apiLink, bool active);
     Task<(bool ok, string msg)> DeleteCteAsync(int id);
+    // Danh mục thành phần dữ liệu trọng yếu (GS1 KDE — Mst_KDE của InBrandCloud eTEM)
+    Task<List<Kde>> KdesAsync(string? q);
+    Task<(bool ok, string msg)> SaveKdeAsync(int id, string code, string description, string? dataType, string? refNoList, string? networkType, bool flagList, bool flagQuery, bool active);
+    Task<(bool ok, string msg)> DeleteKdeAsync(int id);
+    // Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE)
+    Task<List<CteKde>> CteKdesAsync(string? cteCode);
+    Task<(bool ok, string msg)> SaveCteKdesAsync(string cteCode, List<CteKdeInput> items);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
 public record VerifyResult(string Code, string Product, string? Origin, string? Manufacturer, string LotNo,
     int VerifyCount, VerifyStatus Status, string StatusText, string Message, DateTime ScannedAt);
+
+/// <summary>1 dòng ánh xạ CTE↔KDE khi lưu (tương đương 1 dòng bảng CTE_KDE).</summary>
+public record CteKdeInput(string KdeCode, bool FlagKey, bool FlagOsOrgView);
 
 public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
@@ -200,6 +210,100 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Ctes.Remove(cte);
         await db.SaveChangesAsync();
         return (true, "Đã xóa sự kiện.");
+    }
+
+    // ===== Danh mục thành phần dữ liệu trọng yếu (GS1 KDE — Mst_KDE của InBrandCloud eTEM) =====
+    // "Từ điển" các trường dữ liệu phải thu thập tại mỗi sự kiện truy xuất.
+    public async Task<List<Kde>> KdesAsync(string? q)
+    {
+        var query = db.Kdes.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(k => k.Code.Contains(q) || k.Description.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(k => k.Code).ToList();
+    }
+
+    public async Task<(bool ok, string msg)> SaveKdeAsync(int id, string code, string description, string? dataType, string? refNoList, string? networkType, bool flagList, bool flagQuery, bool active)
+    {
+        code = (code ?? "").Trim();
+        description = (description ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã thành phần (KDECode).");
+        if (description.Length == 0) return (false, "Cần mô tả thành phần (KDEDesc).");
+        // Mã thành phần phải duy nhất trong tenant.
+        if (await db.Kdes.AnyAsync(k => k.Code == code && k.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        Kde kde;
+        if (id > 0)
+        {
+            kde = await db.Kdes.FirstOrDefaultAsync(k => k.Id == id) ?? null!;
+            if (kde == null) return (false, "Không tìm thấy thành phần.");
+        }
+        else { kde = new Kde(); db.Kdes.Add(kde); }
+
+        kde.Code = code; kde.Description = description;
+        kde.DataType = string.IsNullOrWhiteSpace(dataType) ? null : dataType.Trim();
+        kde.RefNoList = string.IsNullOrWhiteSpace(refNoList) ? null : refNoList.Trim();
+        kde.NetworkType = string.IsNullOrWhiteSpace(networkType) ? null : networkType.Trim();
+        kde.FlagList = flagList; kde.FlagQuery = flagQuery; kde.Active = active;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật thành phần." : "Đã thêm thành phần.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteKdeAsync(int id)
+    {
+        var kde = await db.Kdes.FirstOrDefaultAsync(k => k.Id == id);
+        if (kde == null) return (false, "Không tìm thấy thành phần.");
+        // Không cho xóa nếu đang được ánh xạ vào sự kiện (giữ toàn vẹn CTE_KDE).
+        if (await db.CteKdes.AnyAsync(m => m.KdeCode == kde.Code))
+            return (false, $"Thành phần '{kde.Code}' đang được dùng trong sự kiện — gỡ ánh xạ trước.");
+        db.Kdes.Remove(kde);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa thành phần.");
+    }
+
+    // ===== Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE) =====
+    public async Task<List<CteKde>> CteKdesAsync(string? cteCode)
+    {
+        var query = db.CteKdes.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(cteCode)) query = query.Where(m => m.CteCode == cteCode.Trim());
+        var list = await query.ToListAsync();
+        return list.OrderBy(m => m.CteCode).ThenBy(m => m.KdeCode).ToList();
+    }
+
+    // Lưu toàn bộ ánh xạ của 1 sự kiện (thay thế). Áp 2 quy tắc nghiệp vụ của InBrandCloud:
+    //  (1) Mỗi sự kiện chỉ được có TỐI ĐA 1 KDE loại danh sách (FlagList).
+    //  (2) Mỗi sự kiện phải có ÍT NHẤT 1 KDE là Key (FlagKey).
+    public async Task<(bool ok, string msg)> SaveCteKdesAsync(string cteCode, List<CteKdeInput> items)
+    {
+        cteCode = (cteCode ?? "").Trim();
+        if (cteCode.Length == 0) return (false, "Cần mã sự kiện (CTECode).");
+        var cte = await db.Ctes.FirstOrDefaultAsync(c => c.Code == cteCode);
+        if (cte == null) return (false, $"Sự kiện '{cteCode}' không tồn tại.");
+
+        items ??= [];
+        // Chuẩn hóa + bỏ trùng mã thành phần.
+        var clean = items.Where(i => !string.IsNullOrWhiteSpace(i.KdeCode))
+                         .GroupBy(i => i.KdeCode.Trim()).Select(g => g.First()).ToList();
+        if (clean.Count == 0) return (false, "Cần chọn ít nhất 1 thành phần dữ liệu.");
+
+        // Kiểm tra các mã thành phần tồn tại.
+        var codes = clean.Select(i => i.KdeCode.Trim()).ToList();
+        var kdes = await db.Kdes.Where(k => codes.Contains(k.Code)).ToListAsync();
+        var missing = codes.Except(kdes.Select(k => k.Code)).ToList();
+        if (missing.Count > 0) return (false, $"Thành phần không tồn tại: {string.Join(", ", missing)}.");
+
+        // Quy tắc (1): tối đa 1 KDE loại danh sách.
+        var listKdes = kdes.Where(k => k.FlagList).Select(k => k.Code).ToList();
+        if (listKdes.Count > 1) return (false, $"Mỗi sự kiện chỉ được có tối đa 1 thành phần loại danh sách (đang có: {string.Join(", ", listKdes)}).");
+        // Quy tắc (2): phải có ít nhất 1 KDE là Key.
+        if (!clean.Any(i => i.FlagKey)) return (false, "Mỗi sự kiện phải có ít nhất 1 thành phần là Key (FlagKey).");
+
+        // Thay thế toàn bộ ánh xạ cũ của sự kiện.
+        var old = await db.CteKdes.Where(m => m.CteCode == cteCode).ToListAsync();
+        db.CteKdes.RemoveRange(old);
+        foreach (var i in clean)
+            db.CteKdes.Add(new CteKde { CteCode = cteCode, KdeCode = i.KdeCode.Trim(), NetworkType = cte.NetworkType, FlagKey = i.FlagKey, FlagOsOrgView = i.FlagOsOrgView });
+        await db.SaveChangesAsync();
+        return (true, $"Đã lưu {clean.Count} thành phần cho sự kiện '{cteCode}'.");
     }
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();

@@ -22,7 +22,12 @@ export const api = {
   verifications: (q) => req(`/verifications${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   ctes: (q) => req(`/ctes${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveCte: (b) => req('/ctes', { method: 'POST', body: b }),
-  deleteCte: (id) => req(`/ctes/${id}`, { method: 'DELETE' })
+  deleteCte: (id) => req(`/ctes/${id}`, { method: 'DELETE' }),
+  kdes: (q) => req(`/kdes${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveKde: (b) => req('/kdes', { method: 'POST', body: b }),
+  deleteKde: (id) => req(`/kdes/${id}`, { method: 'DELETE' }),
+  cteKdes: (cteCode) => req(`/cte-kdes${cteCode ? `?cteCode=${encodeURIComponent(cteCode)}` : ''}`),
+  saveCteKdes: (b) => req('/cte-kdes', { method: 'POST', body: b })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

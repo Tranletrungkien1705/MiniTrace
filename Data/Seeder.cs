@@ -57,13 +57,51 @@ public static class Seeder
                 new Cte { Code = "CONSUMER_SCAN", Description = "Bán cho người tiêu dùng / quét xác thực", NetworkType = "Consumer", Active = true });
             await db.SaveChangesAsync();
         }
+
+        // Danh mục thành phần dữ liệu trọng yếu (GS1 KDE) — "từ điển" các trường dữ liệu phải thu thập.
+        if (!await db.Kdes.AnyAsync())
+        {
+            db.Kdes.AddRange(
+                new Kde { Code = "LOT_NO", Description = "Số lô sản xuất", DataType = "Text", NetworkType = "Manufacturer", Active = true },
+                new Kde { Code = "PROD_DATE", Description = "Ngày sản xuất", DataType = "Date", NetworkType = "Manufacturer", Active = true },
+                new Kde { Code = "EXP_DATE", Description = "Hạn sử dụng", DataType = "Date", NetworkType = "Manufacturer", Active = true },
+                new Kde { Code = "SERIAL_NO", Description = "Số serial / mã định danh đơn vị", DataType = "Text", NetworkType = "Manufacturer", Active = true },
+                new Kde { Code = "QUANTITY", Description = "Số lượng", DataType = "Number", NetworkType = "Warehouse", Active = true },
+                new Kde { Code = "FROM_LOCATION", Description = "Vị trí xuất phát", DataType = "Text", NetworkType = "Warehouse", Active = true },
+                new Kde { Code = "TO_LOCATION", Description = "Vị trí đích", DataType = "Text", NetworkType = "Warehouse", Active = true },
+                new Kde { Code = "CARRIER", Description = "Đơn vị vận chuyển", DataType = "Text", NetworkType = "Distributor", Active = true },
+                new Kde { Code = "STORAGE_TEMP", Description = "Nhiệt độ bảo quản", DataType = "Number", NetworkType = "Warehouse", Active = true },
+                new Kde { Code = "QUALITY_RESULT", Description = "Kết quả kiểm định", DataType = "List", RefNoList = "Đạt;Không đạt;Chờ", NetworkType = "Manufacturer", FlagList = true, Active = true });
+            await db.SaveChangesAsync();
+        }
+
+        // Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE) — mỗi sự kiện cần thu thập KDE nào.
+        if (!await db.CteKdes.AnyAsync())
+        {
+            db.CteKdes.AddRange(
+                new CteKde { CteCode = "PRODUCTION_IN", KdeCode = "LOT_NO", NetworkType = "Manufacturer", FlagKey = true },
+                new CteKde { CteCode = "PRODUCTION_IN", KdeCode = "PROD_DATE", NetworkType = "Manufacturer", FlagKey = true },
+                new CteKde { CteCode = "PRODUCTION_IN", KdeCode = "SERIAL_NO", NetworkType = "Manufacturer", FlagKey = true },
+                new CteKde { CteCode = "QUALITY_CHECK", KdeCode = "QUALITY_RESULT", NetworkType = "Manufacturer", FlagKey = true },
+                new CteKde { CteCode = "PACKING", KdeCode = "LOT_NO", NetworkType = "Manufacturer", FlagKey = true },
+                new CteKde { CteCode = "PACKING", KdeCode = "EXP_DATE", NetworkType = "Manufacturer", FlagKey = true },
+                new CteKde { CteCode = "WAREHOUSE_IN", KdeCode = "QUANTITY", NetworkType = "Warehouse", FlagKey = true },
+                new CteKde { CteCode = "WAREHOUSE_IN", KdeCode = "STORAGE_TEMP", NetworkType = "Warehouse", FlagKey = false },
+                new CteKde { CteCode = "SALE_TO_DISTRIBUTOR", KdeCode = "FROM_LOCATION", NetworkType = "Distributor", FlagKey = true },
+                new CteKde { CteCode = "SALE_TO_DISTRIBUTOR", KdeCode = "TO_LOCATION", NetworkType = "Distributor", FlagKey = true },
+                new CteKde { CteCode = "SALE_TO_DISTRIBUTOR", KdeCode = "CARRIER", NetworkType = "Distributor", FlagKey = false },
+                new CteKde { CteCode = "DISTRIBUTOR_IN", KdeCode = "TO_LOCATION", NetworkType = "Distributor", FlagKey = true },
+                new CteKde { CteCode = "RETAIL_SALE", KdeCode = "LOT_NO", NetworkType = "Dealer", FlagKey = true },
+                new CteKde { CteCode = "CONSUMER_SCAN", KdeCode = "SERIAL_NO", NetworkType = "Consumer", FlagKey = true });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task MigratePostgresAsync(AppDbContext db)
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

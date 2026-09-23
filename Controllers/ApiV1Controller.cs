@@ -125,6 +125,38 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục thành phần dữ liệu trọng yếu (GS1 KDE — Mst_KDE của InBrandCloud eTEM) =====
+    [HttpGet("kdes")]
+    public async Task<IActionResult> Kdes([FromQuery] string? q)
+        => Ok((await svc.KdesAsync(q)).Select(k => new { k.Id, k.Code, k.Description, k.DataType, k.RefNoList, k.NetworkType, k.FlagList, k.FlagQuery, k.Active, k.CreatedAt }));
+
+    [HttpPost("kdes")]
+    public async Task<IActionResult> SaveKde([FromBody] KdeReq r)
+    {
+        var (ok, msg) = await svc.SaveKdeAsync(r.Id, r.Code ?? "", r.Description ?? "", r.DataType, r.RefNoList, r.NetworkType, r.FlagList, r.FlagQuery, r.Active);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("kdes/{id:int}")]
+    public async Task<IActionResult> DeleteKde(int id)
+    {
+        var (ok, msg) = await svc.DeleteKdeAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    // ===== Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE) =====
+    [HttpGet("cte-kdes")]
+    public async Task<IActionResult> CteKdes([FromQuery] string? cteCode)
+        => Ok((await svc.CteKdesAsync(cteCode)).Select(m => new { m.Id, m.CteCode, m.KdeCode, m.NetworkType, m.FlagKey, m.FlagOsOrgView }));
+
+    [HttpPost("cte-kdes")]
+    public async Task<IActionResult> SaveCteKdes([FromBody] CteKdeReq r)
+    {
+        var items = (r.Items ?? []).Select(i => new CteKdeInput(i.KdeCode ?? "", i.FlagKey, i.FlagOsOrgView)).ToList();
+        var (ok, msg) = await svc.SaveCteKdesAsync(r.CteCode ?? "", items);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -154,4 +186,7 @@ public class UnitReq { public int ProductId { get; set; } public string? LotNo {
 public class EventReq { public int Type { get; set; } public string? Location { get; set; } public string? Actor { get; set; } public string? Note { get; set; } }
 public class VerifyReq { public string Code { get; set; } = ""; public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public string? Phone { get; set; } }
 public class CteReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? NetworkType { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
+public class KdeReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public string? NetworkType { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }
+public class CteKdeReq { public string? CteCode { get; set; } public List<CteKdeItemReq>? Items { get; set; } }
+public class CteKdeItemReq { public string? KdeCode { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 
