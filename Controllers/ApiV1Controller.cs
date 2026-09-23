@@ -223,6 +223,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Mẫu hiển thị sự kiện truy xuất (GS1 Template View Event — Mst_TplViewEvent của InBrandCloud eTEM) =====
+    [HttpGet("tpl-view-events")]
+    public async Task<IActionResult> TplViewEvents([FromQuery] string? q)
+        => Ok((await svc.TplViewEventsAsync(q)).Select(v => new { v.Id, v.Code, v.Description, v.Detail, v.CteCode, v.Remark, v.Active, v.FlagBG, v.CreatedAt }));
+
+    [HttpPost("tpl-view-events")]
+    public async Task<IActionResult> SaveTplViewEvent([FromBody] TplViewEventReq r)
+    {
+        var (ok, msg) = await svc.SaveTplViewEventAsync(r.Id, r.Code ?? "", r.Description ?? "", r.Detail ?? "", r.CteCode, r.Remark, r.Active, r.FlagBG);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("tpl-view-events/{id:int}")]
+    public async Task<IActionResult> DeleteTplViewEvent(int id)
+    {
+        var (ok, msg) = await svc.DeleteTplViewEventAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -260,4 +279,5 @@ public class TemplateReq { public int Id { get; set; } public string? TplNWType 
 public class TplCteItemReq { public string? CteCode { get; set; } public string? CteDesc { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
 public class TplKdeItemReq { public string? KdeCode { get; set; } public string? KdeDesc { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }
 public class TplCteKdeItemReq { public string? CteCode { get; set; } public string? KdeCode { get; set; } public string? ApiLink { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
+public class TplViewEventReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? Detail { get; set; } public string? CteCode { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; public bool FlagBG { get; set; } }
 

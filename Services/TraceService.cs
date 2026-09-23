@@ -41,6 +41,10 @@ public interface ITraceService
     Task<(bool ok, string msg)> SaveTemplateAsync(int id, string tplNWType, string description, string? remark, List<TplNwtCteInput> ctes, List<TplNwtKdeInput> kdes, List<TplNwtCteKdeInput> cteKdes);
     Task<(bool ok, string msg)> DeleteTemplateAsync(int id);
     Task<(bool ok, string msg)> ApproveTemplateAsync(int id);
+    // Mẫu hiển thị sự kiện truy xuất (GS1 Template View Event — Mst_TplViewEvent của InBrandCloud eTEM)
+    Task<List<TplViewEvent>> TplViewEventsAsync(string? q);
+    Task<(bool ok, string msg)> SaveTplViewEventAsync(int id, string code, string description, string detail, string? cteCode, string? remark, bool active, bool flagBG);
+    Task<(bool ok, string msg)> DeleteTplViewEventAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -470,6 +474,63 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         tpl.Status = TplNwtStatus.Approve;
         await db.SaveChangesAsync();
         return (true, $"Đã duyệt mẫu '{tpl.TplNWType}'.");
+    }
+
+    // ===== Mẫu hiển thị sự kiện truy xuất (GS1 Template View Event — Mst_TplViewEvent của InBrandCloud eTEM) =====
+    // "Khuôn hiển thị" cho một sự kiện (CTE): mô tả + chi tiết bố cục dùng để render hành trình truy xuất.
+    public async Task<List<TplViewEvent>> TplViewEventsAsync(string? q)
+    {
+        var query = db.TplViewEvents.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(v => v.Code.Contains(q) || v.Description.Contains(q) || (v.CteCode != null && v.CteCode.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderBy(v => v.Code).ToList();
+    }
+
+    // Lưu mẫu hiển thị. Áp quy tắc nghiệp vụ InBrandCloud (Mst_TplViewEvent_Create/Update):
+    //  (1) Cần mã (TplVECode) + mô tả (TplVEDesc) + chi tiết (TplVEDetail).
+    //  (2) Mã mẫu hiển thị duy nhất trong tenant.
+    //  (3) Nếu gắn sự kiện (CTECode) thì sự kiện phải tồn tại trong danh mục CTE.
+    //  (4) Mỗi sự kiện chỉ được có TỐI ĐA 1 mẫu hiển thị đang hoạt động (FlagActive) — giữ tính duy nhất khi render.
+    public async Task<(bool ok, string msg)> SaveTplViewEventAsync(int id, string code, string description, string detail, string? cteCode, string? remark, bool active, bool flagBG)
+    {
+        code = (code ?? "").Trim();
+        description = (description ?? "").Trim();
+        detail = (detail ?? "").Trim();
+        cteCode = string.IsNullOrWhiteSpace(cteCode) ? null : cteCode.Trim();
+        if (code.Length == 0) return (false, "Cần mã mẫu hiển thị (TplVECode).");
+        if (description.Length == 0) return (false, "Cần mô tả mẫu hiển thị (TplVEDesc).");
+        if (detail.Length == 0) return (false, "Cần chi tiết bố cục hiển thị (TplVEDetail).");
+        // Mã mẫu hiển thị phải duy nhất trong tenant.
+        if (await db.TplViewEvents.AnyAsync(v => v.Code == code && v.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+        // Sự kiện tham chiếu (nếu có) phải tồn tại trong danh mục CTE.
+        if (cteCode != null && !await db.Ctes.AnyAsync(c => c.Code == cteCode)) return (false, $"Sự kiện '{cteCode}' không tồn tại.");
+        // Quy tắc (4): mỗi sự kiện tối đa 1 mẫu hiển thị đang hoạt động.
+        if (active && cteCode != null && await db.TplViewEvents.AnyAsync(v => v.CteCode == cteCode && v.Active && v.Id != id))
+            return (false, $"Sự kiện '{cteCode}' đã có mẫu hiển thị đang hoạt động — chỉ được 1 mẫu.");
+
+        TplViewEvent ve;
+        if (id > 0)
+        {
+            ve = await db.TplViewEvents.FirstOrDefaultAsync(v => v.Id == id) ?? null!;
+            if (ve == null) return (false, "Không tìm thấy mẫu hiển thị.");
+        }
+        else { ve = new TplViewEvent(); db.TplViewEvents.Add(ve); }
+
+        ve.Code = code; ve.Description = description; ve.Detail = detail;
+        ve.CteCode = cteCode;
+        ve.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        ve.Active = active; ve.FlagBG = flagBG;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật mẫu hiển thị." : "Đã thêm mẫu hiển thị.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteTplViewEventAsync(int id)
+    {
+        var ve = await db.TplViewEvents.FirstOrDefaultAsync(v => v.Id == id);
+        if (ve == null) return (false, "Không tìm thấy mẫu hiển thị.");
+        db.TplViewEvents.Remove(ve);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa mẫu hiển thị.");
     }
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();

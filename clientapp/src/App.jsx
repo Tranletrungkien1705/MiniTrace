@@ -24,7 +24,8 @@ function Layout() {
         <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink>
         <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink>
         <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink>
-        <NavLink to="/templates">Mẫu loại tổ chức</NavLink></nav>
+        <NavLink to="/templates">Mẫu loại tổ chức</NavLink>
+        <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -552,6 +553,66 @@ function TemplateForm({ tpl, onClose, onSaved }) {
   )
 }
 
+function TplViewEvents() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const [ctes, setCtes] = useState([])
+  const load = () => api.tplViewEvents(q).then(r => setRows(r.data))
+  useEffect(() => { load(); api.ctes().then(r => setCtes(r.data)) }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (v) => {
+    if (!window.confirm(`Xóa mẫu hiển thị ${v.code}?`)) return
+    try { const r = await api.deleteTplViewEvent(v.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Mẫu hiển thị sự kiện</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / mô tả / sự kiện…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, code: '', description: '', detail: '', cteCode: '', remark: '', active: true, flagBG: false })}>+ Thêm mẫu</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Mẫu hiển thị sự kiện truy xuất (GS1 Template View Event) — "khuôn hiển thị" cho một sự kiện (CTE): mô tả + chi tiết bố cục dùng để render hành trình truy xuất cho người tiêu dùng/đối tác.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (TplVECode)</th><th>Mô tả</th><th>Sự kiện (CTE)</th><th>Chi tiết bố cục</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(v => (
+            <tr key={v.id}><td style={{ fontFamily: 'monospace' }}>{v.code}</td><td>{v.description}</td>
+              <td>{v.cteCode || '—'}</td><td className="muted" style={{ fontFamily: 'monospace', fontSize: 12 }}>{v.detail}</td>
+              <td><Badge text={v.active ? 'Đang dùng' : 'Ngưng'} css={v.active ? 'success' : 'secondary'} />{v.flagBG ? <Badge text="Nền" css="info" /> : null}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(v)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(v)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>Chưa có mẫu hiển thị.</td></tr>}</tbody></table>
+      </div>
+      {edit && <TplViewEventForm ve={edit} ctes={ctes} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function TplViewEventForm({ ve, ctes, onClose, onSaved }) {
+  const [f, setF] = useState({ ...ve }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveTplViewEvent({ id: f.id, code: f.code, description: f.description, detail: f.detail, cteCode: f.cteCode, remark: f.remark, active: f.active, flagBG: f.flagBG }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa mẫu hiển thị ${f.code}` : 'Thêm mẫu hiển thị sự kiện'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã mẫu hiển thị (TplVECode) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: VE_PRODUCTION" /></Field>
+        <Field label="Sự kiện (CTECode)"><select value={f.cteCode || ''} onChange={e => up('cteCode', e.target.value)}>
+          <option value="">—</option>{ctes.map(c => <option key={c.id} value={c.code}>{c.code} · {c.description}</option>)}</select></Field></div>
+      <Field label="Mô tả (TplVEDesc) *"><input value={f.description} onChange={e => up('description', e.target.value)} /></Field>
+      <Field label="Chi tiết bố cục (TplVEDetail) *"><input value={f.detail} onChange={e => up('detail', e.target.value)} placeholder="vd: {Tên SP} · Lô {LOT_NO} · {Location}" /></Field>
+      <Field label="Ghi chú (Remark)"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang sử dụng</label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagBG} onChange={e => up('flagBG', e.target.checked)} /> Mẫu nền (FlagBG)</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mỗi sự kiện chỉ được có tối đa 1 mẫu hiển thị đang hoạt động.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu mẫu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -565,6 +626,7 @@ export default function App() {
         <Route path="kdes" element={<Kdes />} />
         <Route path="glns" element={<Glns />} />
         <Route path="templates" element={<Templates />} />
+        <Route path="tpl-view-events" element={<TplViewEvents />} />
       </Route>
     </Routes>
   )

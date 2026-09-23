@@ -211,6 +211,26 @@ public class TplNwtCteKde : IOrgOwned
     public TemplateNWType Template { get; set; } = null!;
 }
 
+/// <summary>
+/// Mẫu hiển thị sự kiện truy xuất (GS1 Template View Event — Mst_TplViewEvent của InBrandCloud eTEM).
+/// Định nghĩa "khuôn hiển thị" cho một sự kiện (CTE): mô tả + chi tiết bố cục (TplVEDetail)
+/// dùng để render hành trình truy xuất cho người tiêu dùng/đối tác. Mỗi sự kiện có thể gắn
+/// một mẫu hiển thị đang hoạt động (FlagActive) và một mẫu nền (FlagBG).
+/// </summary>
+public class TplViewEvent : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // TplVECode — mã mẫu hiển thị
+    public string Description { get; set; } = "";  // TplVEDesc — tên/mô tả mẫu
+    public string Detail { get; set; } = "";        // TplVEDetail — chi tiết bố cục hiển thị
+    public string? CteCode { get; set; }            // CTECode — sự kiện áp dụng (tuỳ chọn)
+    public string? Remark { get; set; }             // Remark — ghi chú
+    public bool Active { get; set; } = true;        // FlagActive — đang sử dụng
+    public bool FlagBG { get; set; }                // FlagBG — mẫu nền (background)
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

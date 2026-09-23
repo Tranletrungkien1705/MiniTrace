@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<TplNwtCte> TplNwtCtes => Set<TplNwtCte>();
     public DbSet<TplNwtKde> TplNwtKdes => Set<TplNwtKde>();
     public DbSet<TplNwtCteKde> TplNwtCteKdes => Set<TplNwtCteKde>();
+    public DbSet<TplViewEvent> TplViewEvents => Set<TplViewEvent>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -86,6 +87,11 @@ public class AppDbContext : DbContext
         {
             e.HasOne(x => x.Template).WithMany(x => x.CteKdes).HasForeignKey(x => x.TemplateId);
             e.HasIndex(x => new { x.OrgId, x.TemplateId, x.CteCode, x.KdeCode }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<TplViewEvent>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

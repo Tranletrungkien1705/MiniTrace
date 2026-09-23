@@ -35,7 +35,10 @@ export const api = {
   template: (id) => req(`/templates/${id}`),
   saveTemplate: (b) => req('/templates', { method: 'POST', body: b }),
   approveTemplate: (id) => req(`/templates/${id}/approve`, { method: 'POST' }),
-  deleteTemplate: (id) => req(`/templates/${id}`, { method: 'DELETE' })
+  deleteTemplate: (id) => req(`/templates/${id}`, { method: 'DELETE' }),
+  tplViewEvents: (q) => req(`/tpl-view-events${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveTplViewEvent: (b) => req('/tpl-view-events', { method: 'POST', body: b }),
+  deleteTplViewEvent: (id) => req(`/tpl-view-events/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

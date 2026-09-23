@@ -145,13 +145,30 @@ public static class Seeder
                 new TplNwtCteKde { TemplateId = tplDist.Id, CteCode = "DISTRIBUTOR_IN", KdeCode = "TO_LOCATION", FlagKey = true });
             await db.SaveChangesAsync();
         }
+
+        // Mẫu hiển thị sự kiện truy xuất (GS1 Template View Event) — "khuôn hiển thị" cho từng sự kiện.
+        if (!await db.TplViewEvents.AnyAsync())
+        {
+            db.TplViewEvents.AddRange(
+                new TplViewEvent { Code = "VE_PRODUCTION", Description = "Hiển thị sự kiện sản xuất", CteCode = "PRODUCTION_IN",
+                    Detail = "{Tên SP} · Lô {LOT_NO} · NSX {PROD_DATE} · {Location}", Remark = "Mẫu chuẩn cho nhà sản xuất", Active = true },
+                new TplViewEvent { Code = "VE_QUALITY", Description = "Hiển thị kết quả kiểm định", CteCode = "QUALITY_CHECK",
+                    Detail = "Kiểm định: {QUALITY_RESULT} · {Actor} · {Location}", Active = true },
+                new TplViewEvent { Code = "VE_SHIPMENT", Description = "Hiển thị chặng vận chuyển", CteCode = "SALE_TO_DISTRIBUTOR",
+                    Detail = "{FROM_LOCATION} → {TO_LOCATION} · ĐVVC {CARRIER}", Active = true },
+                new TplViewEvent { Code = "VE_RETAIL", Description = "Hiển thị điểm bán lẻ", CteCode = "RETAIL_SALE",
+                    Detail = "Bày bán tại {Location} · {Actor}", Active = true },
+                new TplViewEvent { Code = "VE_DEFAULT", Description = "Mẫu hiển thị mặc định (nền)",
+                    Detail = "{stage} · {Location} · {Actor} · {OccurredAt}", Remark = "Dùng khi sự kiện chưa có mẫu riêng", Active = false, FlagBG = true });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task MigratePostgresAsync(AppDbContext db)
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",
