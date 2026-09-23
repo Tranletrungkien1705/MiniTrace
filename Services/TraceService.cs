@@ -137,6 +137,11 @@ public interface ITraceService
     Task<List<ManufactureLine>> ManufactureLinesAsync(string? q);
     Task<(bool ok, string msg)> SaveManufactureLineAsync(int id, string lineCode, string lineName, string? networkId, string? lineRootCode, string? linePositionValue, bool flagRoot, bool active, string? lastCompletedID);
     Task<(bool ok, string msg)> DeleteManufactureLineAsync(int id);
+    // Cảnh báo đồng bộ ElasticSearch (Wrn_WarningSyncES của InBrandCloud eTEM)
+    Task<List<WarningSyncES>> WarningSyncESsAsync(string? q, WarningSyncStatus? status);
+    Task<(bool ok, string msg)> SaveWarningSyncESAsync(int id, string iVerifiedIDInOutNo, string orgCode, string productCode, string? refNoSys, string idNo, string? remark);
+    Task<(bool ok, string msg)> MarkWarningSyncESAsync(int id, WarningSyncStatus status);
+    Task<(bool ok, string msg)> DeleteWarningSyncESAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -2033,5 +2038,82 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.ManufactureLines.Remove(l);
         await db.SaveChangesAsync();
         return (true, "Đã xóa dây chuyền.");
+    }
+
+    // ===== Cảnh báo đồng bộ ElasticSearch (Wrn_WarningSyncES của InBrandCloud eTEM) =====
+    // Mắt xích "giám sát đồng bộ": tem đã xuất kho nhưng chưa có trên chỉ mục ES → ghi cảnh báo để đồng bộ lại.
+    public async Task<List<WarningSyncES>> WarningSyncESsAsync(string? q, WarningSyncStatus? status)
+    {
+        var query = db.WarningSyncESs.AsQueryable();
+        if (status.HasValue) query = query.Where(w => w.SyncStatus == status.Value);
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(w => w.IDNo.Contains(q) || w.ProductCode.Contains(q)
+                || w.IVerifiedIDInOutNo.Contains(q) || (w.RefNoSys != null && w.RefNoSys.Contains(q)));
+        return await query.OrderByDescending(w => w.Id).Take(500).ToListAsync();
+    }
+
+    // Lưu cảnh báo đồng bộ ES. Áp quy tắc InBrandCloud (Wrn_WarningSyncES_AddByRefNoSysX):
+    //  (1) Cần mã phiếu xuất kho (IVerifiedIDInOutNo) + mã hàng hoá (ProductCode) + tem (IDNo).
+    //  (2) Bộ (IVerifiedIDInOutNo, ProductCode, IDNo) duy nhất trong tenant — chống trùng cảnh báo.
+    //  (3) Dòng mới/lưu lại quay về trạng thái chờ đồng bộ (SyncStatus=0).
+    public async Task<(bool ok, string msg)> SaveWarningSyncESAsync(int id, string iVerifiedIDInOutNo, string orgCode, string productCode, string? refNoSys, string idNo, string? remark)
+    {
+        iVerifiedIDInOutNo = (iVerifiedIDInOutNo ?? "").Trim();
+        productCode = (productCode ?? "").Trim();
+        idNo = (idNo ?? "").Trim();
+        // (1) Bắt buộc mã phiếu xuất kho + mã hàng hoá + tem.
+        if (iVerifiedIDInOutNo.Length == 0) return (false, "Cần mã phiếu xuất kho (IVerifiedIDInOutNo).");
+        if (productCode.Length == 0) return (false, "Cần mã hàng hoá (ProductCode).");
+        if (idNo.Length == 0) return (false, "Cần số định danh tem (IDNo).");
+        // (2) Bộ định danh duy nhất trong tenant.
+        if (await db.WarningSyncESs.AnyAsync(w => w.IVerifiedIDInOutNo == iVerifiedIDInOutNo
+                && w.ProductCode == productCode && w.IDNo == idNo && w.Id != id))
+            return (false, $"Tem '{idNo}' của phiếu '{iVerifiedIDInOutNo}' đã có cảnh báo.");
+
+        WarningSyncES w;
+        if (id > 0)
+        {
+            w = await db.WarningSyncESs.FirstOrDefaultAsync(x => x.Id == id) ?? null!;
+            if (w == null) return (false, "Không tìm thấy cảnh báo.");
+        }
+        else
+        {
+            w = new WarningSyncES();
+            db.WarningSyncESs.Add(w);
+        }
+
+        w.IVerifiedIDInOutNo = iVerifiedIDInOutNo;
+        w.OrgCode = (orgCode ?? "").Trim();
+        w.ProductCode = productCode;
+        w.RefNoSys = string.IsNullOrWhiteSpace(refNoSys) ? null : refNoSys.Trim();
+        w.IDNo = idNo;
+        w.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        // (3) Dòng mới/lưu lại quay về trạng thái chờ đồng bộ.
+        w.SyncStatus = WarningSyncStatus.Pending;
+        w.SyncedAt = null;
+        w.UpdatedAt = DateTime.Now;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật cảnh báo." : "Đã thêm cảnh báo.");
+    }
+
+    // Đánh dấu trạng thái đồng bộ ES (0 chưa đồng bộ / 1 đã đồng bộ) — tương đương cập nhật SyncStatus của Wrn_WarningSyncES.
+    public async Task<(bool ok, string msg)> MarkWarningSyncESAsync(int id, WarningSyncStatus status)
+    {
+        var w = await db.WarningSyncESs.FirstOrDefaultAsync(x => x.Id == id);
+        if (w == null) return (false, "Không tìm thấy cảnh báo.");
+        w.SyncStatus = status;
+        w.SyncedAt = status == WarningSyncStatus.Synced ? DateTime.Now : null;
+        w.UpdatedAt = DateTime.Now;
+        await db.SaveChangesAsync();
+        return (true, status == WarningSyncStatus.Synced ? "Đã đánh dấu đồng bộ ES." : "Đã đưa về chờ đồng bộ.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteWarningSyncESAsync(int id)
+    {
+        var w = await db.WarningSyncESs.FirstOrDefaultAsync(x => x.Id == id);
+        if (w == null) return (false, "Không tìm thấy cảnh báo.");
+        db.WarningSyncESs.Remove(w);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa cảnh báo.");
     }
 }

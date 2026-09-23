@@ -814,6 +814,37 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Cảnh báo đồng bộ ElasticSearch (Wrn_WarningSyncES của InBrandCloud eTEM) =====
+    [HttpGet("warning-sync-es")]
+    public async Task<IActionResult> WarningSyncESs([FromQuery] string? q, [FromQuery] int? status)
+        => Ok((await svc.WarningSyncESsAsync(q, status.HasValue ? (WarningSyncStatus)status.Value : null)).Select(w => new
+        {
+            w.Id, w.IVerifiedIDInOutNo, w.OrgCode, w.ProductCode, w.RefNoSys, w.IDNo, w.Remark,
+            syncStatus = (int)w.SyncStatus, syncStatusText = Ui.WarningSync(w.SyncStatus).text, css = Ui.WarningSync(w.SyncStatus).css,
+            w.SyncedAt, w.CreatedAt, w.UpdatedAt
+        }));
+
+    [HttpPost("warning-sync-es")]
+    public async Task<IActionResult> SaveWarningSyncES([FromBody] WarningSyncESReq r)
+    {
+        var (ok, msg) = await svc.SaveWarningSyncESAsync(r.Id, r.IVerifiedIDInOutNo ?? "", r.OrgCode ?? "", r.ProductCode ?? "", r.RefNoSys, r.IDNo ?? "", r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("warning-sync-es/{id:int}/mark")]
+    public async Task<IActionResult> MarkWarningSyncES(int id, [FromBody] WarningSyncESMarkReq r)
+    {
+        var (ok, msg) = await svc.MarkWarningSyncESAsync(id, (WarningSyncStatus)r.Status);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("warning-sync-es/{id:int}")]
+    public async Task<IActionResult> DeleteWarningSyncES(int id)
+    {
+        var (ok, msg) = await svc.DeleteWarningSyncESAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -1006,3 +1037,16 @@ public class ManufactureLineReq
     public bool Active { get; set; } = true;
     public string? LastCompletedID { get; set; }
 }
+
+public class WarningSyncESReq
+{
+    public int Id { get; set; }
+    public string? IVerifiedIDInOutNo { get; set; }
+    public string? OrgCode { get; set; }
+    public string? ProductCode { get; set; }
+    public string? RefNoSys { get; set; }
+    public string? IDNo { get; set; }
+    public string? Remark { get; set; }
+}
+
+public class WarningSyncESMarkReq { public int Status { get; set; } }

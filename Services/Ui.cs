@@ -77,4 +77,11 @@ public static class Ui
         ManufacturedStatus.Completed => ("Đã hoàn tất", "success", "bi-check2-circle"),
         _ => (s.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) WarningSync(WarningSyncStatus s) => s switch
+    {
+        WarningSyncStatus.Pending => ("Chưa đồng bộ ES", "warning", "bi-cloud-slash"),
+        WarningSyncStatus.Synced => ("Đã đồng bộ ES", "success", "bi-cloud-check"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

@@ -44,7 +44,8 @@ function Layout() {
         <NavLink to="/network-masters">Mạng lưới</NavLink>
         <NavLink to="/distribution-histories">Lịch sử phân phối</NavLink>
         <NavLink to="/dealers">Đại lý</NavLink>
-        <NavLink to="/manufacture-lines">Dây chuyền SX</NavLink></nav>
+        <NavLink to="/manufacture-lines">Dây chuyền SX</NavLink>
+        <NavLink to="/warning-sync-es">Cảnh báo đồng bộ ES</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -2033,6 +2034,68 @@ function DealerForm({ dealer, onClose, onSaved }) {
   )
 }
 
+function WarningSyncESs() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [status, setStatus] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.warningSyncESs(q, status === '' ? null : Number(status)).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (w) => {
+    if (!window.confirm(`Xóa cảnh báo tem ${w.idNo}?`)) return
+    try { const r = await api.deleteWarningSyncES(w.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  const mark = async (w, st) => {
+    try { const r = await api.markWarningSyncES(w.id, { status: st }); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Cảnh báo đồng bộ ES</h1><div className="sp" />
+        <select style={{ maxWidth: 180 }} value={status} onChange={e => setStatus(e.target.value)}>
+          <option value="">Tất cả trạng thái</option><option value="0">Chưa đồng bộ ES</option><option value="1">Đã đồng bộ ES</option></select>
+        <input style={{ maxWidth: 220 }} placeholder="Tìm tem / hàng hoá / phiếu…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, iVerifiedIDInOutNo: '', orgCode: '', productCode: '', refNoSys: '', idNo: '', remark: '' })}>+ Thêm cảnh báo</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Cảnh báo đồng bộ ElasticSearch (Wrn_WarningSyncES) — tem đã xuất kho nhưng chưa có trên chỉ mục ES (etem_tem). Ghi cảnh báo để worker đồng bộ lại; khi đẩy thành công → đánh dấu "Đã đồng bộ ES".</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Phiếu xuất (IVerifiedIDInOutNo)</th><th>Mã hàng hoá</th><th>Phiếu (RefNoSys)</th><th>Tem (IDNo)</th><th>Trạng thái</th><th>Ghi chú</th><th></th></tr></thead>
+          <tbody>{rows.map(w => (
+            <tr key={w.id}><td style={{ fontFamily: 'monospace' }}>{w.iVerifiedIDInOutNo}</td><td>{w.productCode}</td>
+              <td className="muted">{w.refNoSys || '—'}</td><td style={{ fontFamily: 'monospace' }}>{w.idNo}</td>
+              <td><Badge text={w.syncStatusText} css={w.css} /></td><td className="muted">{w.remark || '—'}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                {w.syncStatus === 0
+                  ? <button className="btn ghost sm" onClick={() => mark(w, 1)}>Đã đồng bộ</button>
+                  : <button className="btn ghost sm" onClick={() => mark(w, 0)}>Chờ đồng bộ</button>}{' '}
+                <button className="btn ghost sm" onClick={() => setEdit(w)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(w)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có cảnh báo.</td></tr>}</tbody></table>
+      </div>
+      {edit && <WarningSyncESForm item={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function WarningSyncESForm({ item, onClose, onSaved }) {
+  const [f, setF] = useState({ ...item }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveWarningSyncES({ ...f }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa cảnh báo tem ${f.idNo}` : 'Thêm cảnh báo đồng bộ ES'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã phiếu xuất (IVerifiedIDInOutNo) *"><input value={f.iVerifiedIDInOutNo} onChange={e => up('iVerifiedIDInOutNo', e.target.value)} placeholder="vd: IV2601100002" /></Field>
+        <Field label="Mã hàng hoá (ProductCode) *"><input value={f.productCode} onChange={e => up('productCode', e.target.value)} placeholder="vd: 8930001001" /></Field></div>
+      <div className="row"><Field label="Phiếu xuất kho (RefNoSys)"><input value={f.refNoSys || ''} onChange={e => up('refNoSys', e.target.value)} placeholder="vd: PX2601100002" /></Field>
+        <Field label="Tem (IDNo) *"><input value={f.idNo} onChange={e => up('idNo', e.target.value)} placeholder="vd: P000001" /></Field></div>
+      <div className="row"><Field label="Mã tổ chức (OrgID)"><input value={f.orgCode || ''} onChange={e => up('orgCode', e.target.value)} placeholder="vd: MST-NXSX-ST" /></Field>
+        <Field label="Ghi chú (Remark)"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} placeholder="vd: CSC.SyncELTS.PXK" /></Field></div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã phiếu xuất + mã hàng hoá + tem; bộ (phiếu, hàng hoá, tem) duy nhất trong hệ thống. Lưu xong quay về trạng thái "Chưa đồng bộ ES".</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -2067,6 +2130,7 @@ export default function App() {
         <Route path="distribution-histories" element={<DistributionHistories />} />
         <Route path="dealers" element={<Dealers />} />
         <Route path="manufacture-lines" element={<ManufactureLines />} />
+        <Route path="warning-sync-es" element={<WarningSyncESs />} />
       </Route>
     </Routes>
   )

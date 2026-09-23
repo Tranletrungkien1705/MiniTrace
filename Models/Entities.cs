@@ -949,3 +949,41 @@ public class ManufactureLine : IOrgOwned
     public string? LastCompletedID { get; set; }        // LastCompletedID — IDNo hoàn tất gần nhất trên dây chuyền
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Trạng thái đồng bộ ElasticSearch của một cảnh báo (SyncStatus của Wrn_WarningSyncES).
+/// Pending = 0 (chưa được đồng bộ ES), Synced = 1 (đã được đồng bộ ES).
+/// </summary>
+public enum WarningSyncStatus
+{
+    Pending = 0,   // 0 — chưa được đồng bộ ES
+    Synced = 1     // 1 — đã được đồng bộ ES
+}
+
+/// <summary>
+/// Cảnh báo đồng bộ ElasticSearch (GS1 Warning Sync ES — Wrn_WarningSyncES của InBrandCloud eTEM).
+/// Mỗi dòng = 1 tem sản phẩm (IDNo) đã xuất kho (Inv_VerifiedIDInOut) nhưng KHÔNG tìm thấy
+/// trên chỉ mục ElasticSearch (etem_tem) — tức dữ liệu truy xuất chưa được đồng bộ lên ES.
+/// Đây là mắt xích "giám sát đồng bộ" của chuỗi truy xuất: khi phát hiện tem xuất kho mà ES
+/// chưa có (hoặc thông tin khách hàng/vùng thị trường/mã phiếu xuất kho không khớp), hệ thống
+/// ghi 1 dòng cảnh báo với SyncStatus=0 để worker đồng bộ lại; khi đẩy thành công → SyncStatus=1.
+/// Áp quy tắc InBrandCloud (Wrn_WarningSyncES_AddByRefNoSysX + Wrn_WarningSyncES_SaveX):
+///  (1) RefNoSys phải tồn tại trong Inv_VerifiedIDInOut (phiếu xuất kho) — nếu không → lỗi;
+///  (2) phải có ít nhất 1 tem (IDNo) gắn với phiếu đó — nếu không → lỗi;
+///  (3) bộ (IVerifiedIDInOutNo, OrgID, ProductCode, IDNo) định danh dòng cảnh báo — chống trùng.
+/// </summary>
+public class WarningSyncES : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string IVerifiedIDInOutNo { get; set; } = "";  // IVerifiedIDInOutNo — mã bản ghi xác thực nhập/xuất (phiếu xuất kho)
+    public string OrgCode { get; set; } = "";              // OrgID — mã tổ chức (đơn vị xuất kho)
+    public string ProductCode { get; set; } = "";          // ProductCode — mã hàng hoá
+    public string? RefNoSys { get; set; }                   // RefNoSys — mã phiếu xuất kho (hệ thống)
+    public string IDNo { get; set; } = "";                 // IDNo — số định danh tem sản phẩm (duy nhất trong tenant)
+    public string? Remark { get; set; }                     // Remark — ghi chú (vd: CSC.SyncELTS.PXK)
+    public WarningSyncStatus SyncStatus { get; set; } = WarningSyncStatus.Pending;  // SyncStatus — 0 chưa đồng bộ / 1 đã đồng bộ ES
+    public DateTime? SyncedAt { get; set; }                 // thời điểm đồng bộ ES thành công
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+}

@@ -479,6 +479,20 @@ public static class Seeder
                     LineRootCode = "LINE-01", LinePositionValue = "3", FlagRoot = false, Active = false });
             await db.SaveChangesAsync();
         }
+
+        // Cảnh báo đồng bộ ElasticSearch (Wrn_WarningSyncES của InBrandCloud eTEM) — tem xuất kho nhưng chưa có trên chỉ mục ES.
+        if (!await db.WarningSyncESs.AnyAsync())
+        {
+            db.WarningSyncESs.AddRange(
+                new WarningSyncES { IVerifiedIDInOutNo = "IV2601100002", OrgCode = "MST-NXSX-ST", ProductCode = "8930001001",
+                    RefNoSys = "PX2601100002", IDNo = "P000001", Remark = "CSC.SyncELTS.PXK", SyncStatus = WarningSyncStatus.Pending },
+                new WarningSyncES { IVerifiedIDInOutNo = "IV2601120003", OrgCode = "MST-NXSX-ST", ProductCode = "8930001001",
+                    RefNoSys = "PX2601120003", IDNo = "P000002", Remark = "CSC.SyncELTS.PXK", SyncStatus = WarningSyncStatus.Pending },
+                new WarningSyncES { IVerifiedIDInOutNo = "IV2601150004", OrgCode = "MST-NXSX-ST", ProductCode = "8930001001",
+                    RefNoSys = "PX2601150004", IDNo = "P000003", Remark = "Ghép tem lỗi — đã đồng bộ lại",
+                    SyncStatus = WarningSyncStatus.Synced, SyncedAt = DateTime.Now.AddDays(-1) });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -492,7 +506,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines", "WarningSyncESs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

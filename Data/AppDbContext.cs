@@ -46,6 +46,7 @@ public class AppDbContext : DbContext
     public DbSet<DistributionHistory> DistributionHistories => Set<DistributionHistory>();
     public DbSet<Dealer> Dealers => Set<Dealer>();
     public DbSet<ManufactureLine> ManufactureLines => Set<ManufactureLine>();
+    public DbSet<WarningSyncES> WarningSyncESs => Set<WarningSyncES>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -242,6 +243,12 @@ public class AppDbContext : DbContext
         b.Entity<ManufactureLine>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.LineCode }).IsUnique();   // mã dây chuyền duy nhất trong tenant
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<WarningSyncES>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.IVerifiedIDInOutNo, x.ProductCode, x.IDNo }).IsUnique();   // bộ định danh dòng cảnh báo — chống trùng
+            e.HasIndex(x => new { x.OrgId, x.SyncStatus });                                             // tra cứu cảnh báo chưa đồng bộ
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

@@ -109,7 +109,11 @@ export const api = {
   deleteDealer: (id) => req(`/dealers/${id}`, { method: 'DELETE' }),
   manufactureLines: (q) => req(`/manufacture-lines${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveManufactureLine: (b) => req('/manufacture-lines', { method: 'POST', body: b }),
-  deleteManufactureLine: (id) => req(`/manufacture-lines/${id}`, { method: 'DELETE' })
+  deleteManufactureLine: (id) => req(`/manufacture-lines/${id}`, { method: 'DELETE' }),
+  warningSyncESs: (q, status) => req(`/warning-sync-es?${status !== undefined && status !== null ? `status=${status}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`),
+  saveWarningSyncES: (b) => req('/warning-sync-es', { method: 'POST', body: b }),
+  markWarningSyncES: (id, b) => req(`/warning-sync-es/${id}/mark`, { method: 'POST', body: b }),
+  deleteWarningSyncES: (id) => req(`/warning-sync-es/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'
