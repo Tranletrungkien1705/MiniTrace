@@ -48,6 +48,7 @@ public class AppDbContext : DbContext
     public DbSet<ManufactureLine> ManufactureLines => Set<ManufactureLine>();
     public DbSet<WarningSyncES> WarningSyncESs => Set<WarningSyncES>();
     public DbSet<Province> Provinces => Set<Province>();
+    public DbSet<NotifyForSearch> NotifyForSearches => Set<NotifyForSearch>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -255,6 +256,11 @@ public class AppDbContext : DbContext
         b.Entity<Province>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();   // mã tỉnh/thành duy nhất trong tenant
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<NotifyForSearch>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.NotiFSNo }).IsUnique();   // mã thông báo duy nhất trong tenant
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

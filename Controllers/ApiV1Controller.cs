@@ -864,6 +864,29 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Thông báo tra cứu (GS1 Notify For Search — Mst_NotifyForSearch của InBrandCloud eTEM) =====
+    [HttpGet("notify-for-searches")]
+    public async Task<IActionResult> NotifyForSearches([FromQuery] string? q)
+        => Ok((await svc.NotifyForSearchesAsync(q)).Select(n => new
+        {
+            n.Id, n.NotiFSNo, n.NotifyDesc, n.EffDateStart, n.EffDateEnd, n.NetworkId, n.OrgCode,
+            n.ESNotifyId, n.Active, n.Remark, n.CreatedAt, n.UpdatedAt
+        }));
+
+    [HttpPost("notify-for-searches")]
+    public async Task<IActionResult> SaveNotifyForSearch([FromBody] NotifyForSearchReq r)
+    {
+        var (ok, msg) = await svc.SaveNotifyForSearchAsync(r.Id, r.NotiFSNo ?? "", r.NotifyDesc ?? "", r.EffDateStart, r.EffDateEnd, r.NetworkId, r.OrgCode, r.Active, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("notify-for-searches/{id:int}")]
+    public async Task<IActionResult> DeleteNotifyForSearch(int id)
+    {
+        var (ok, msg) = await svc.DeleteNotifyForSearchAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -1071,3 +1094,4 @@ public class WarningSyncESReq
 public class WarningSyncESMarkReq { public int Status { get; set; } }
 
 public class ProvinceReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? CountryCode { get; set; } public bool Active { get; set; } = true; }
+public class NotifyForSearchReq { public int Id { get; set; } public string? NotiFSNo { get; set; } public string? NotifyDesc { get; set; } public string? EffDateStart { get; set; } public string? EffDateEnd { get; set; } public string? NetworkId { get; set; } public string? OrgCode { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }

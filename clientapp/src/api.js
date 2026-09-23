@@ -116,7 +116,10 @@ export const api = {
   deleteWarningSyncES: (id) => req(`/warning-sync-es/${id}`, { method: 'DELETE' }),
   provinces: (q) => req(`/provinces${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveProvince: (b) => req('/provinces', { method: 'POST', body: b }),
-  deleteProvince: (id) => req(`/provinces/${id}`, { method: 'DELETE' })
+  deleteProvince: (id) => req(`/provinces/${id}`, { method: 'DELETE' }),
+  notifyForSearches: (q) => req(`/notify-for-searches${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveNotifyForSearch: (b) => req('/notify-for-searches', { method: 'POST', body: b }),
+  deleteNotifyForSearch: (id) => req(`/notify-for-searches/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

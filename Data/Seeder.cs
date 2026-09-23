@@ -505,6 +505,25 @@ public static class Seeder
                 new Province { Code = "94", Name = "Sóc Trăng", CountryCode = "VN", Active = false });
             await db.SaveChangesAsync();
         }
+
+        // Thông báo tra cứu (Mst_NotifyForSearch của InBrandCloud eTEM) — "bảng tin" hiển thị khi NTD tra cứu.
+        if (!await db.NotifyForSearches.AnyAsync())
+        {
+            db.NotifyForSearches.AddRange(
+                new NotifyForSearch { NotiFSNo = "NFS2601010001", NetworkId = "Manufacturer", OrgCode = "MST-NXSX-ST",
+                    NotifyDesc = "Sản phẩm Gạo ST25 Sóc Trăng đạt chuẩn VietGAP — truy xuất nguồn gốc minh bạch.",
+                    EffDateStart = "2026-01-01", EffDateEnd = "2026-12-31", ESNotifyId = "ESN0000000001", Active = true,
+                    Remark = "Thông báo chung cho toàn bộ sản phẩm" },
+                new NotifyForSearch { NotiFSNo = "NFS2601010002", NetworkId = "Distributor", OrgCode = "MST-DL-HCM",
+                    NotifyDesc = "Khuyến cáo: kiểm tra tem cào và quét mã QR để xác thực chính hãng trước khi mua.",
+                    EffDateStart = "2026-02-01", EffDateEnd = "2026-06-30", ESNotifyId = "ESN0000000002", Active = true,
+                    Remark = "Thông báo mùa cao điểm chống hàng giả" },
+                new NotifyForSearch { NotiFSNo = "NFS2512010003", NetworkId = "Manufacturer", OrgCode = "MST-NXSX-ST",
+                    NotifyDesc = "Thông báo thu hồi lô L2025-088 do lỗi bao bì — ngưng bán và liên hệ đại lý.",
+                    EffDateStart = "2025-12-01", EffDateEnd = "2026-01-31", ESNotifyId = "ESN0000000003", Active = false,
+                    Remark = "Đã hết hiệu lực" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -518,7 +537,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines", "WarningSyncESs", "Provinces" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines", "WarningSyncESs", "Provinces", "NotifyForSearches" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

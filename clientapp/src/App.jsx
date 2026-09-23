@@ -46,7 +46,8 @@ function Layout() {
         <NavLink to="/dealers">Đại lý</NavLink>
         <NavLink to="/manufacture-lines">Dây chuyền SX</NavLink>
         <NavLink to="/warning-sync-es">Cảnh báo đồng bộ ES</NavLink>
-        <NavLink to="/provinces">Tỉnh/Thành phố</NavLink></nav>
+        <NavLink to="/provinces">Tỉnh/Thành phố</NavLink>
+        <NavLink to="/notify-for-searches">Thông báo tra cứu</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1964,6 +1965,64 @@ function ProvinceForm({ province, onClose, onSaved }) {
   )
 }
 
+function NotifyForSearches() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.notifyForSearches(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (n) => {
+    if (!window.confirm(`Xóa thông báo ${n.notiFSNo}?`)) return
+    try { const r = await api.deleteNotifyForSearch(n.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Thông báo tra cứu</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / nội dung…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, notiFSNo: '', notifyDesc: '', effDateStart: '', effDateEnd: '', networkId: '', orgCode: '', active: true, remark: '' })}>+ Thêm thông báo</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Thông báo tra cứu (GS1 Notify For Search — Mst_NotifyForSearch) — "bảng tin" hiển thị cho người tiêu dùng/đối tác khi tra cứu truy xuất nguồn gốc. Chỉ thông báo đang hoạt động và còn trong thời gian hiệu lực mới được hiển thị.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (NotiFSNo)</th><th>Nội dung</th><th>Hiệu lực</th><th>ESNotifyID</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(n => (
+            <tr key={n.id}><td style={{ fontFamily: 'monospace' }}>{n.notiFSNo}</td><td>{n.notifyDesc}</td>
+              <td className="muted">{n.effDateStart || '—'} → {n.effDateEnd || '—'}</td>
+              <td className="muted" style={{ fontFamily: 'monospace' }}>{n.esNotifyId || '—'}</td>
+              <td><Badge text={n.active ? 'Đang dùng' : 'Ngưng'} css={n.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(n)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(n)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={6} className="muted" style={{ padding: 20 }}>Chưa có thông báo.</td></tr>}</tbody></table>
+      </div>
+      {edit && <NotifyForSearchForm notify={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function NotifyForSearchForm({ notify, onClose, onSaved }) {
+  const [f, setF] = useState({ ...notify }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveNotifyForSearch({ ...f }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa thông báo ${f.notiFSNo}` : 'Thêm thông báo tra cứu'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã thông báo (NotiFSNo) *"><input value={f.notiFSNo} onChange={e => up('notiFSNo', e.target.value)} placeholder="vd: NFS2601010001" /></Field>
+        <Field label="Mạng (NetworkID)"><input value={f.networkId || ''} onChange={e => up('networkId', e.target.value)} placeholder="vd: Manufacturer" /></Field></div>
+      <Field label="Nội dung thông báo (NotifyDesc) *"><textarea rows={3} value={f.notifyDesc} onChange={e => up('notifyDesc', e.target.value)} placeholder="Nội dung hiển thị khi tra cứu…" /></Field>
+      <div className="row"><Field label="Hiệu lực từ (EffDateStart) *"><input value={f.effDateStart || ''} onChange={e => up('effDateStart', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Hiệu lực đến (EffDateEnd) *"><input value={f.effDateEnd || ''} onChange={e => up('effDateEnd', e.target.value)} placeholder="yyyy-MM-dd" /></Field></div>
+      <div className="row"><Field label="Mã tổ chức (OrgID)"><input value={f.orgCode || ''} onChange={e => up('orgCode', e.target.value)} placeholder="vd: MST-NXSX-ST" /></Field>
+        <Field label="Ghi chú (Remark)"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field></div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang hoạt động</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã + nội dung + thời gian hiệu lực từ/đến; EffDateStart phải ≤ EffDateEnd; mã thông báo duy nhất trong hệ thống; ESNotifyID cấp tự động khi lưu lần đầu.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 function Dealers() {
   const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
   const load = () => api.dealers(q).then(r => setRows(r.data))
@@ -2186,6 +2245,7 @@ export default function App() {
         <Route path="manufacture-lines" element={<ManufactureLines />} />
         <Route path="warning-sync-es" element={<WarningSyncESs />} />
         <Route path="provinces" element={<Provinces />} />
+        <Route path="notify-for-searches" element={<NotifyForSearches />} />
       </Route>
     </Routes>
   )

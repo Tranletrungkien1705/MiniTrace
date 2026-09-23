@@ -146,6 +146,10 @@ public interface ITraceService
     Task<List<Province>> ProvincesAsync(string? q);
     Task<(bool ok, string msg)> SaveProvinceAsync(int id, string code, string name, string? countryCode, bool active);
     Task<(bool ok, string msg)> DeleteProvinceAsync(int id);
+    // Thông báo tra cứu (GS1 Notify For Search — Mst_NotifyForSearch của InBrandCloud eTEM)
+    Task<List<NotifyForSearch>> NotifyForSearchesAsync(string? q);
+    Task<(bool ok, string msg)> SaveNotifyForSearchAsync(int id, string notiFSNo, string notifyDesc, string? effDateStart, string? effDateEnd, string? networkId, string? orgCode, bool active, string? remark);
+    Task<(bool ok, string msg)> DeleteNotifyForSearchAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -2168,5 +2172,70 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Provinces.Remove(pv);
         await db.SaveChangesAsync();
         return (true, "Đã xóa tỉnh/thành.");
+    }
+
+    // ===== Thông báo tra cứu (GS1 Notify For Search — Mst_NotifyForSearch của InBrandCloud eTEM) =====
+    // "Bảng tin" hiển thị cho NTD/đối tác khi tra cứu truy xuất nguồn gốc (nội dung + khoảng hiệu lực).
+    public async Task<List<NotifyForSearch>> NotifyForSearchesAsync(string? q)
+    {
+        var query = db.NotifyForSearches.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(n => n.NotiFSNo.Contains(q) || n.NotifyDesc.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(n => n.NotiFSNo).ToList();
+    }
+
+    // Lưu thông báo tra cứu. Áp quy tắc InBrandCloud (Mst_NotifyForSearch_UpdateX):
+    //  (1) Cần mã thông báo (NotiFSNo) — tương đương Mst_NotifyForSearch_CheckDB.
+    //  (2) Cần nội dung thông báo (NotifyDesc) — tương đương Mst_NotifyForSearch_UpdateX_InvalidNotifyDesc.
+    //  (3) Cần thời gian hiệu lực từ (EffDateStart) — tương đương ..._InvalidEffDateStart.
+    //  (4) Cần thời gian hiệu lực đến (EffDateEnd) — tương đương ..._InvalidEffDateEnd.
+    //  (5) EffDateStart phải ≤ EffDateEnd — tương đương ..._InvalidEffDateStart_EffDateEnd.
+    //  (6) Mã thông báo duy nhất trong tenant; ESNotifyID cấp tự động khi lưu lần đầu nếu chưa có
+    //      — tương đương Seq_GenObjCode_V1_GetX.
+    public async Task<(bool ok, string msg)> SaveNotifyForSearchAsync(int id, string notiFSNo, string notifyDesc,
+        string? effDateStart, string? effDateEnd, string? networkId, string? orgCode, bool active, string? remark)
+    {
+        notiFSNo = (notiFSNo ?? "").Trim();
+        notifyDesc = (notifyDesc ?? "").Trim();
+        effDateStart = string.IsNullOrWhiteSpace(effDateStart) ? null : effDateStart.Trim();
+        effDateEnd = string.IsNullOrWhiteSpace(effDateEnd) ? null : effDateEnd.Trim();
+        if (notiFSNo.Length == 0) return (false, "Cần mã thông báo (NotiFSNo).");
+        if (notifyDesc.Length == 0) return (false, "Cần nội dung thông báo (NotifyDesc).");
+        if (effDateStart == null) return (false, "Cần thời gian hiệu lực từ (EffDateStart).");
+        if (effDateEnd == null) return (false, "Cần thời gian hiệu lực đến (EffDateEnd).");
+        // (5) EffDateStart phải ≤ EffDateEnd.
+        if (string.CompareOrdinal(effDateStart, effDateEnd) > 0)
+            return (false, "Thời gian hiệu lực từ (EffDateStart) phải trước hoặc bằng thời gian hiệu lực đến (EffDateEnd).");
+        // (6) Mã thông báo duy nhất trong tenant.
+        if (await db.NotifyForSearches.AnyAsync(n => n.NotiFSNo == notiFSNo && n.Id != id)) return (false, $"Mã '{notiFSNo}' đã tồn tại.");
+
+        NotifyForSearch nfs;
+        if (id > 0)
+        {
+            nfs = await db.NotifyForSearches.FirstOrDefaultAsync(n => n.Id == id) ?? null!;
+            if (nfs == null) return (false, "Không tìm thấy thông báo.");
+        }
+        else { nfs = new NotifyForSearch(); db.NotifyForSearches.Add(nfs); }
+
+        nfs.NotiFSNo = notiFSNo; nfs.NotifyDesc = notifyDesc;
+        nfs.EffDateStart = effDateStart; nfs.EffDateEnd = effDateEnd;
+        nfs.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        nfs.OrgCode = string.IsNullOrWhiteSpace(orgCode) ? null : orgCode.Trim();
+        nfs.Active = active;
+        nfs.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        // (6) Cấp ESNotifyID tự động khi chưa có (tương đương Seq_GenObjCode_V1_GetX).
+        if (string.IsNullOrWhiteSpace(nfs.ESNotifyId)) nfs.ESNotifyId = "ESN" + Guid.NewGuid().ToString("N")[..12].ToUpperInvariant();
+        nfs.UpdatedAt = DateTime.Now;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật thông báo." : "Đã thêm thông báo.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteNotifyForSearchAsync(int id)
+    {
+        var nfs = await db.NotifyForSearches.FirstOrDefaultAsync(n => n.Id == id);
+        if (nfs == null) return (false, "Không tìm thấy thông báo.");
+        db.NotifyForSearches.Remove(nfs);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa thông báo.");
     }
 }

@@ -1007,3 +1007,34 @@ public class Province : IOrgOwned
     public bool Active { get; set; } = true;        // FlagActive — đang hoạt động
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Thông báo tra cứu (GS1 Notify For Search — Mst_NotifyForSearch của InBrandCloud eTEM).
+/// "Bảng tin" hiển thị cho người tiêu dùng/đối tác khi tra cứu truy xuất nguồn gốc: mỗi dòng
+/// gắn một mã thông báo (NotiFSNo) với nội dung (NotifyDesc) và khoảng thời gian hiệu lực
+/// (EffDateStart → EffDateEnd). Chỉ những thông báo đang hoạt động (FlagActive) và còn trong
+/// thời gian hiệu lực mới được hiển thị trên màn tra cứu. ESNotifyID là mã định danh thông báo
+/// trên ElasticSearch (etem_tem) — cấp tự động khi lưu lần đầu nếu chưa có (tương đương
+/// Seq_GenObjCode_V1_GetX của InBrandCloud). Áp quy tắc InBrandCloud (Mst_NotifyForSearch_UpdateX):
+///  (1) NotiFSNo phải tồn tại (Mst_NotifyForSearch_CheckDB);
+///  (2) NotifyDesc bắt buộc;
+///  (3) EffDateStart bắt buộc;
+///  (4) EffDateEnd bắt buộc;
+///  (5) EffDateStart phải ≤ EffDateEnd.
+/// </summary>
+public class NotifyForSearch : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string NotiFSNo { get; set; } = "";        // NotiFSNo — mã thông báo (duy nhất trong tenant)
+    public string? NetworkId { get; set; }             // NetworkID — môi trường/loại mạng áp dụng
+    public string? OrgCode { get; set; }               // OrgID — mã tổ chức sở hữu thông báo
+    public string NotifyDesc { get; set; } = "";      // NotifyDesc — nội dung thông báo
+    public string? EffDateStart { get; set; }          // EffDateStart — thông báo hiệu lực từ
+    public string? EffDateEnd { get; set; }            // EffDateEnd — thông báo hiệu lực đến
+    public string? ESNotifyId { get; set; }            // ESNotifyID — mã ElasticSearch của thông báo
+    public bool Active { get; set; } = true;           // FlagActive — đang hoạt động
+    public string? Remark { get; set; }                // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+}
