@@ -28,6 +28,10 @@ public interface ITraceService
     Task<List<Kde>> KdesAsync(string? q);
     Task<(bool ok, string msg)> SaveKdeAsync(int id, string code, string description, string? dataType, string? refNoList, string? networkType, bool flagList, bool flagQuery, bool active);
     Task<(bool ok, string msg)> DeleteKdeAsync(int id);
+    // Danh mục kiểu dữ liệu (GS1 Data Type — Mst_DataType của InBrandCloud eTEM)
+    Task<List<DataType>> DataTypesAsync(string? q);
+    Task<(bool ok, string msg)> SaveDataTypeAsync(int id, string code, string description, string? networkType, bool active);
+    Task<(bool ok, string msg)> DeleteDataTypeAsync(int id);
     // Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE)
     Task<List<CteKde>> CteKdesAsync(string? cteCode);
     Task<(bool ok, string msg)> SaveCteKdesAsync(string cteCode, List<CteKdeInput> items);
@@ -300,6 +304,55 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Kdes.Remove(kde);
         await db.SaveChangesAsync();
         return (true, "Đã xóa thành phần.");
+    }
+
+    // ===== Danh mục kiểu dữ liệu (GS1 Data Type — Mst_DataType của InBrandCloud eTEM) =====
+    // "Từ điển" các kiểu dữ liệu mà một thành phần dữ liệu (KDE) có thể nhận (Text/Number/Date/List…).
+    public async Task<List<DataType>> DataTypesAsync(string? q)
+    {
+        var query = db.DataTypes.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(d => d.Code.Contains(q) || d.Description.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(d => d.Code).ToList();
+    }
+
+    // Lưu kiểu dữ liệu. Áp quy tắc InBrandCloud (Mst_DataType_CheckDB):
+    //  (1) Cần mã kiểu (DataType) + diễn giải (DataTypeDesc).
+    //  (2) Mã kiểu dữ liệu duy nhất trong tenant.
+    public async Task<(bool ok, string msg)> SaveDataTypeAsync(int id, string code, string description, string? networkType, bool active)
+    {
+        code = (code ?? "").Trim();
+        description = (description ?? "").Trim();
+        if (code.Length == 0) return (false, "Cần mã kiểu dữ liệu (DataType).");
+        if (description.Length == 0) return (false, "Cần diễn giải kiểu dữ liệu (DataTypeDesc).");
+        // Mã kiểu dữ liệu phải duy nhất trong tenant.
+        if (await db.DataTypes.AnyAsync(d => d.Code == code && d.Id != id)) return (false, $"Mã '{code}' đã tồn tại.");
+
+        DataType dt;
+        if (id > 0)
+        {
+            dt = await db.DataTypes.FirstOrDefaultAsync(d => d.Id == id) ?? null!;
+            if (dt == null) return (false, "Không tìm thấy kiểu dữ liệu.");
+        }
+        else { dt = new DataType(); db.DataTypes.Add(dt); }
+
+        dt.Code = code; dt.Description = description;
+        dt.NetworkType = string.IsNullOrWhiteSpace(networkType) ? null : networkType.Trim();
+        dt.Active = active;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật kiểu dữ liệu." : "Đã thêm kiểu dữ liệu.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteDataTypeAsync(int id)
+    {
+        var dt = await db.DataTypes.FirstOrDefaultAsync(d => d.Id == id);
+        if (dt == null) return (false, "Không tìm thấy kiểu dữ liệu.");
+        // Không cho xóa nếu đang được thành phần dữ liệu (KDE) tham chiếu (giữ toàn vẹn KDE.DataType).
+        if (await db.Kdes.AnyAsync(k => k.DataType == dt.Code))
+            return (false, $"Kiểu dữ liệu '{dt.Code}' đang được thành phần dữ liệu dùng — đổi kiểu của KDE trước.");
+        db.DataTypes.Remove(dt);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa kiểu dữ liệu.");
     }
 
     // ===== Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE) =====

@@ -144,6 +144,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục kiểu dữ liệu (GS1 Data Type — Mst_DataType của InBrandCloud eTEM) =====
+    [HttpGet("data-types")]
+    public async Task<IActionResult> DataTypes([FromQuery] string? q)
+        => Ok((await svc.DataTypesAsync(q)).Select(d => new { d.Id, d.Code, d.Description, d.NetworkType, d.Active, d.CreatedAt }));
+
+    [HttpPost("data-types")]
+    public async Task<IActionResult> SaveDataType([FromBody] DataTypeReq r)
+    {
+        var (ok, msg) = await svc.SaveDataTypeAsync(r.Id, r.Code ?? "", r.Description ?? "", r.NetworkType, r.Active);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("data-types/{id:int}")]
+    public async Task<IActionResult> DeleteDataType(int id)
+    {
+        var (ok, msg) = await svc.DeleteDataTypeAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // ===== Ánh xạ sự kiện ↔ thành phần dữ liệu (GS1 CTE_KDE) =====
     [HttpGet("cte-kdes")]
     public async Task<IActionResult> CteKdes([FromQuery] string? cteCode)
@@ -347,6 +366,7 @@ public class EventReq { public int Type { get; set; } public string? Location { 
 public class VerifyReq { public string Code { get; set; } = ""; public string? Location { get; set; } public double? Latitude { get; set; } public double? Longitude { get; set; } public string? Phone { get; set; } }
 public class CteReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? NetworkType { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
 public class KdeReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public string? NetworkType { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }
+public class DataTypeReq { public int Id { get; set; } public string? Code { get; set; } public string? Description { get; set; } public string? NetworkType { get; set; } public bool Active { get; set; } = true; }
 public class CteKdeReq { public string? CteCode { get; set; } public List<CteKdeItemReq>? Items { get; set; } }
 public class CteKdeItemReq { public string? KdeCode { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 public class GlnReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? GpsLat { get; set; } public string? GpsLong { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; }

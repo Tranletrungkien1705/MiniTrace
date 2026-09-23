@@ -101,6 +101,23 @@ public class Kde : IOrgOwned
 }
 
 /// <summary>
+/// Danh mục Kiểu dữ liệu (GS1 Data Type — Mst_DataType của InBrandCloud eTEM).
+/// "Từ điển" các kiểu dữ liệu mà một thành phần dữ liệu (KDE) có thể nhận
+/// (Text/Number/Date/List…). Khi tạo/sửa KDE có khai báo DataType, hệ thống
+/// kiểm tra kiểu đó phải tồn tại và đang hoạt động trong danh mục này.
+/// </summary>
+public class DataType : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string Code { get; set; } = "";        // DataType — mã kiểu dữ liệu (vd: Text)
+    public string Description { get; set; } = "";  // DataTypeDesc — diễn giải kiểu dữ liệu
+    public string? NetworkType { get; set; }        // NetworkID — loại mạng/đối tác áp dụng
+    public bool Active { get; set; } = true;        // FlagActive
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
+/// <summary>
 /// Ánh xạ Sự kiện trọng yếu ↔ Thành phần dữ liệu (GS1 CTE_KDE).
 /// Tương đương bảng CTE_KDE của InBrandCloud eTEM: định nghĩa mỗi sự kiện (CTE)
 /// cần thu thập những thành phần dữ liệu (KDE) nào, và thành phần nào là "Key".

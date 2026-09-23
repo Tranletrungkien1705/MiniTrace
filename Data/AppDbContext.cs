@@ -15,6 +15,7 @@ public class AppDbContext : DbContext
     public DbSet<Verification> Verifications => Set<Verification>();
     public DbSet<Cte> Ctes => Set<Cte>();
     public DbSet<Kde> Kdes => Set<Kde>();
+    public DbSet<DataType> DataTypes => Set<DataType>();
     public DbSet<CteKde> CteKdes => Set<CteKde>();
     public DbSet<Gln> Glns => Set<Gln>();
     public DbSet<OrgGln> OrgGlns => Set<OrgGln>();
@@ -56,6 +57,11 @@ public class AppDbContext : DbContext
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
         b.Entity<Kde>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<DataType>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);

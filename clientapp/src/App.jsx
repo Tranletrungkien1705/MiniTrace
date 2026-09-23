@@ -23,7 +23,7 @@ function Layout() {
         <NavLink to="/" end>Tổng quan</NavLink><NavLink to="/units">Đơn vị truy xuất</NavLink>
         <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink>
         <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink>
-        <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink>
+        <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/data-types">Kiểu dữ liệu</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink>
         <NavLink to="/farms">Nông trại</NavLink>
         <NavLink to="/org-glns">Tổ chức ↔ Địa điểm</NavLink>
         <NavLink to="/templates">Mẫu loại tổ chức</NavLink>
@@ -359,6 +359,61 @@ function KdeForm({ kde, onClose, onSaved }) {
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
         <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang sử dụng</label>
       <div style={{ marginTop: 16 }}><button className="btn" onClick={save}>Lưu</button></div>
+    </Modal>
+  )
+}
+
+function DataTypes() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.dataTypes(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (d) => {
+    if (!window.confirm(`Xóa kiểu dữ liệu ${d.code}?`)) return
+    try { const r = await api.deleteDataType(d.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Kiểu dữ liệu</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / diễn giải…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, code: '', description: '', networkType: '', active: true })}>+ Thêm kiểu</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục kiểu dữ liệu (GS1 Data Type — Mst_DataType) — "từ điển" các kiểu dữ liệu mà một thành phần dữ liệu (KDE) có thể nhận (Text/Number/Date/List…).</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (DataType)</th><th>Diễn giải</th><th>Loại mạng</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(d => (
+            <tr key={d.id}><td style={{ fontFamily: 'monospace' }}>{d.code}</td><td>{d.description}</td>
+              <td>{d.networkType || '—'}</td>
+              <td><Badge text={d.active ? 'Đang dùng' : 'Ngưng'} css={d.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(d)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(d)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={5} className="muted" style={{ padding: 20 }}>Chưa có kiểu dữ liệu.</td></tr>}</tbody></table>
+      </div>
+      {edit && <DataTypeForm dt={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function DataTypeForm({ dt, onClose, onSaved }) {
+  const [f, setF] = useState({ ...dt }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveDataType({ id: f.id, code: f.code, description: f.description, networkType: f.networkType, active: f.active }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa kiểu dữ liệu ${f.code}` : 'Thêm kiểu dữ liệu'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã kiểu dữ liệu (DataType) *"><input value={f.code} onChange={e => up('code', e.target.value)} placeholder="vd: Text" /></Field>
+        <Field label="Loại mạng"><select value={f.networkType || ''} onChange={e => up('networkType', e.target.value)}>
+          <option value="">—</option>{CTE_NET.map(n => <option key={n} value={n}>{n}</option>)}</select></Field></div>
+      <Field label="Diễn giải (DataTypeDesc) *"><input value={f.description} onChange={e => up('description', e.target.value)} placeholder="vd: Chuỗi ký tự" /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang sử dụng</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mã kiểu dữ liệu duy nhất; không xóa được kiểu đang được thành phần dữ liệu (KDE) dùng.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu</button></div>
     </Modal>
   )
 }
@@ -814,6 +869,7 @@ export default function App() {
         <Route path="verify" element={<Verify />} />
         <Route path="ctes" element={<Ctes />} />
         <Route path="kdes" element={<Kdes />} />
+        <Route path="data-types" element={<DataTypes />} />
         <Route path="glns" element={<Glns />} />
         <Route path="farms" element={<Farms />} />
         <Route path="org-glns" element={<OrgGlns />} />

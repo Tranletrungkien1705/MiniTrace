@@ -58,6 +58,17 @@ public static class Seeder
             await db.SaveChangesAsync();
         }
 
+        // Danh mục kiểu dữ liệu (GS1 Data Type — Mst_DataType của InBrandCloud eTEM) — "từ điển" kiểu dữ liệu cho KDE.
+        if (!await db.DataTypes.AnyAsync())
+        {
+            db.DataTypes.AddRange(
+                new DataType { Code = "Text", Description = "Chuỗi ký tự", NetworkType = "Manufacturer", Active = true },
+                new DataType { Code = "Number", Description = "Số", NetworkType = "Manufacturer", Active = true },
+                new DataType { Code = "Date", Description = "Ngày tháng", NetworkType = "Manufacturer", Active = true },
+                new DataType { Code = "List", Description = "Danh sách giá trị (chọn 1)", NetworkType = "Manufacturer", Active = true });
+            await db.SaveChangesAsync();
+        }
+
         // Danh mục thành phần dữ liệu trọng yếu (GS1 KDE) — "từ điển" các trường dữ liệu phải thu thập.
         if (!await db.Kdes.AnyAsync())
         {
@@ -211,7 +222,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",
