@@ -620,6 +620,49 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Định danh sản phẩm (GS1 Product ID — Prd_ProductID của InBrandCloud ProductCenter) =====
+    [HttpGet("product-ids")]
+    public async Task<IActionResult> ProductIds([FromQuery] string? q)
+        => Ok((await svc.ProductIdsAsync(q)).Select(p => new
+        {
+            p.Id, p.ProductID, p.SpecCode, p.ProductionDate, p.LotNo, p.BuyDate, p.SecretNo,
+            p.WarrantyStartDate, p.WarrantyExpiredDate, p.WarrantyDuration,
+            p.RefNo1, p.RefBiz1, p.RefNo2, p.RefBiz2, p.RefNo3, p.RefBiz3, p.Buyer, p.NetworkProductIdCode,
+            status = (int)p.Status, statusText = Ui.ProductId(p.Status).text, css = Ui.ProductId(p.Status).css,
+            p.CustomField1, p.CustomField2, p.CustomField3, p.CustomField4, p.CustomField5, p.Remark, p.CreatedAt, p.UpdatedAt
+        }));
+
+    [HttpGet("product-ids/{id:int}")]
+    public async Task<IActionResult> ProductId(int id)
+    {
+        var p = await svc.GetProductIdAsync(id);
+        if (p == null) return NotFound(new { error = "Không tìm thấy định danh sản phẩm." });
+        return Ok(new
+        {
+            p.Id, p.ProductID, p.SpecCode, p.ProductionDate, p.LotNo, p.BuyDate, p.SecretNo,
+            p.WarrantyStartDate, p.WarrantyExpiredDate, p.WarrantyDuration,
+            p.RefNo1, p.RefBiz1, p.RefNo2, p.RefBiz2, p.RefNo3, p.RefBiz3, p.Buyer, p.NetworkProductIdCode,
+            status = (int)p.Status, statusText = Ui.ProductId(p.Status).text,
+            p.CustomField1, p.CustomField2, p.CustomField3, p.CustomField4, p.CustomField5, p.Remark, p.CreatedAt, p.UpdatedAt
+        });
+    }
+
+    [HttpPost("product-ids")]
+    public async Task<IActionResult> SaveProductId([FromBody] ProductIdReq r)
+    {
+        var (ok, msg) = await svc.SaveProductIdAsync(r.Id, r.ProductID ?? "", r.SpecCode, r.ProductionDate, r.LotNo, r.BuyDate, r.SecretNo,
+            r.WarrantyStartDate, r.WarrantyExpiredDate, r.WarrantyDuration, r.RefNo1, r.RefBiz1, r.RefNo2, r.RefBiz2, r.RefNo3, r.RefBiz3,
+            r.Buyer, r.NetworkProductIdCode, (ProductIdStatus)r.Status, r.CustomField1, r.CustomField2, r.CustomField3, r.CustomField4, r.CustomField5, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("product-ids/{id:int}")]
+    public async Task<IActionResult> DeleteProductId(int id)
+    {
+        var (ok, msg) = await svc.DeleteProductIdAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -675,4 +718,26 @@ public class MasterDataReq { public int Id { get; set; } public string? Code { g
 public class NetworkOrgReq { public int Id { get; set; } public string? Mst { get; set; } public string? FullName { get; set; } public string? NetworkType { get; set; } public string? OrgCode { get; set; } public string? Address { get; set; } public string? Mobile { get; set; } public string? ContactName { get; set; } public string? ContactEmail { get; set; } public string? Gln { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
 public class SecretReq { public int Id { get; set; } public string? SerialNo { get; set; } public string? SecretNo { get; set; } public string? QR_SerialNo { get; set; } public string? NetworkId { get; set; } public string? Mst { get; set; } public string? OrgCode { get; set; } public string? GenTimesNo { get; set; } public bool FlagMap { get; set; } public string? Remark { get; set; } }
 public class StampPairReq { public int Id { get; set; } public string? IDNo { get; set; } public string? BoxNo { get; set; } public string? PIN { get; set; } public string? NetworkId { get; set; } public string? Remark { get; set; } }
+public class ProductIdReq
+{
+    public int Id { get; set; }
+    public string? ProductID { get; set; }
+    public string? SpecCode { get; set; }
+    public string? ProductionDate { get; set; }
+    public string? LotNo { get; set; }
+    public string? BuyDate { get; set; }
+    public string? SecretNo { get; set; }
+    public string? WarrantyStartDate { get; set; }
+    public string? WarrantyExpiredDate { get; set; }
+    public string? WarrantyDuration { get; set; }
+    public string? RefNo1 { get; set; } public string? RefBiz1 { get; set; }
+    public string? RefNo2 { get; set; } public string? RefBiz2 { get; set; }
+    public string? RefNo3 { get; set; } public string? RefBiz3 { get; set; }
+    public string? Buyer { get; set; }
+    public string? NetworkProductIdCode { get; set; }
+    public int Status { get; set; }
+    public string? CustomField1 { get; set; } public string? CustomField2 { get; set; } public string? CustomField3 { get; set; }
+    public string? CustomField4 { get; set; } public string? CustomField5 { get; set; }
+    public string? Remark { get; set; }
+}
 

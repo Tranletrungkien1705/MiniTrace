@@ -61,4 +61,13 @@ public static class Ui
     public static (string text, string css, string icon) Secret(bool used) => used
         ? ("Đã dùng", "success", "bi-check2-circle")
         : ("Chưa dùng", "warning", "bi-hourglass-split");
+
+    public static (string text, string css, string icon) ProductId(ProductIdStatus s) => s switch
+    {
+        ProductIdStatus.Ok => ("OK", "success", "bi-check2-circle"),
+        ProductIdStatus.Ng => ("NG", "danger", "bi-x-circle"),
+        ProductIdStatus.Repairing => ("Đang sửa chữa", "warning", "bi-tools"),
+        ProductIdStatus.Checking => ("Đang kiểm tra", "info", "bi-search"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

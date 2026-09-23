@@ -108,6 +108,11 @@ public interface ITraceService
     Task<List<StampPair>> StampPairsAsync(string? q);
     Task<(bool ok, string msg)> SaveStampPairAsync(int id, string idNo, string boxNo, string? pin, string? networkId, string? remark);
     Task<(bool ok, string msg)> DeleteStampPairAsync(int id);
+    // Định danh sản phẩm (GS1 Product ID — Prd_ProductID của InBrandCloud ProductCenter)
+    Task<List<ProductId>> ProductIdsAsync(string? q);
+    Task<ProductId?> GetProductIdAsync(int id);
+    Task<(bool ok, string msg)> SaveProductIdAsync(int id, string productID, string? specCode, string? productionDate, string? lotNo, string? buyDate, string? secretNo, string? warrantyStartDate, string? warrantyExpiredDate, string? warrantyDuration, string? refNo1, string? refBiz1, string? refNo2, string? refBiz2, string? refNo3, string? refBiz3, string? buyer, string? networkProductIdCode, ProductIdStatus status, string? customField1, string? customField2, string? customField3, string? customField4, string? customField5, string? remark);
+    Task<(bool ok, string msg)> DeleteProductIdAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1537,5 +1542,72 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.StampPairs.Remove(pair);
         await db.SaveChangesAsync();
         return (true, "Đã xóa cặp tem.");
+    }
+
+    // ===== Định danh sản phẩm (GS1 Product ID — Prd_ProductID của InBrandCloud ProductCenter) =====
+    // Mỗi dòng = 1 sản phẩm đã bán/đã giao gắn với một mã định danh duy nhất, kèm thông tin
+    // truy xuất nguồn gốc (lô, ngày sản xuất, số bí mật) + bảo hành (ngày bắt đầu/hết hạn, thời hạn).
+    public async Task<List<ProductId>> ProductIdsAsync(string? q)
+    {
+        var query = db.ProductIds.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(p => p.ProductID.Contains(q) || (p.LotNo != null && p.LotNo.Contains(q)) || (p.Buyer != null && p.Buyer.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderBy(p => p.ProductID).ToList();
+    }
+
+    public async Task<ProductId?> GetProductIdAsync(int id)
+        => await db.ProductIds.FirstOrDefaultAsync(p => p.Id == id);
+
+    // Lưu định danh sản phẩm. Áp quy tắc InBrandCloud (OS_PrdCenter_Prd_ProductID_Create/Update/Delete):
+    //  (1) Cần mã định danh sản phẩm (ProductID) — tương đương checkForm "Mã sản phẩm không được trống.".
+    //  (2) Mã định danh sản phẩm duy nhất trong tenant — tương đương khóa (OrgID, ProductID).
+    //  (3) Trạng thái thuộc tập OK/NG/REPAIRING/CHECKING.
+    public async Task<(bool ok, string msg)> SaveProductIdAsync(int id, string productID, string? specCode, string? productionDate, string? lotNo, string? buyDate, string? secretNo, string? warrantyStartDate, string? warrantyExpiredDate, string? warrantyDuration, string? refNo1, string? refBiz1, string? refNo2, string? refBiz2, string? refNo3, string? refBiz3, string? buyer, string? networkProductIdCode, ProductIdStatus status, string? customField1, string? customField2, string? customField3, string? customField4, string? customField5, string? remark)
+    {
+        productID = (productID ?? "").Trim();
+        if (productID.Length == 0) return (false, "Cần mã định danh sản phẩm (ProductID).");
+        // Mã định danh sản phẩm phải duy nhất trong tenant.
+        if (await db.ProductIds.AnyAsync(p => p.ProductID == productID && p.Id != id)) return (false, $"Mã '{productID}' đã tồn tại.");
+
+        ProductId pid;
+        if (id > 0)
+        {
+            pid = await db.ProductIds.FirstOrDefaultAsync(p => p.Id == id) ?? null!;
+            if (pid == null) return (false, "Không tìm thấy định danh sản phẩm.");
+        }
+        else { pid = new ProductId(); db.ProductIds.Add(pid); }
+
+        static string? N(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        pid.ProductID = productID;
+        pid.SpecCode = N(specCode);
+        pid.ProductionDate = N(productionDate);
+        pid.LotNo = N(lotNo);
+        pid.BuyDate = N(buyDate);
+        pid.SecretNo = N(secretNo);
+        pid.WarrantyStartDate = N(warrantyStartDate);
+        pid.WarrantyExpiredDate = N(warrantyExpiredDate);
+        pid.WarrantyDuration = N(warrantyDuration);
+        pid.RefNo1 = N(refNo1); pid.RefBiz1 = N(refBiz1);
+        pid.RefNo2 = N(refNo2); pid.RefBiz2 = N(refBiz2);
+        pid.RefNo3 = N(refNo3); pid.RefBiz3 = N(refBiz3);
+        pid.Buyer = N(buyer);
+        pid.NetworkProductIdCode = N(networkProductIdCode);
+        pid.Status = status;
+        pid.CustomField1 = N(customField1); pid.CustomField2 = N(customField2); pid.CustomField3 = N(customField3);
+        pid.CustomField4 = N(customField4); pid.CustomField5 = N(customField5);
+        pid.Remark = N(remark);
+        pid.UpdatedAt = DateTime.Now;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật định danh sản phẩm." : "Đã thêm định danh sản phẩm.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteProductIdAsync(int id)
+    {
+        var pid = await db.ProductIds.FirstOrDefaultAsync(p => p.Id == id);
+        if (pid == null) return (false, "Không tìm thấy định danh sản phẩm.");
+        db.ProductIds.Remove(pid);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa định danh sản phẩm.");
     }
 }

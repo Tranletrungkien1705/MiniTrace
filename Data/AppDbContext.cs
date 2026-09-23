@@ -39,6 +39,7 @@ public class AppDbContext : DbContext
     public DbSet<NetworkOrg> NetworkOrgs => Set<NetworkOrg>();
     public DbSet<Secret> Secrets => Set<Secret>();
     public DbSet<StampPair> StampPairs => Set<StampPair>();
+    public DbSet<ProductId> ProductIds => Set<ProductId>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -199,6 +200,11 @@ public class AppDbContext : DbContext
         {
             e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();   // mỗi tem sản phẩm chỉ nằm trong 1 cặp
             e.HasIndex(x => new { x.OrgId, x.BoxNo }).IsUnique();  // mỗi tem hộp chỉ nằm trong 1 cặp
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<ProductId>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.ProductID }).IsUnique();   // mã định danh sản phẩm duy nhất trong tenant
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

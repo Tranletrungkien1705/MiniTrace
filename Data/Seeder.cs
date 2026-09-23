@@ -349,6 +349,25 @@ public static class Seeder
                     QR_ID = "P000002", QR_BoxNo = "B2601010002", Remark = "Cặp tem mẫu 2" });
             await db.SaveChangesAsync();
         }
+
+        // Định danh sản phẩm (Prd_ProductID của InBrandCloud ProductCenter) — sản phẩm đã bán gắn mã định danh + bảo hành.
+        if (!await db.ProductIds.AnyAsync())
+        {
+            db.ProductIds.AddRange(
+                new ProductId { ProductID = "PID-ST25-0001", SpecCode = "8930001001", ProductionDate = "2026-01-05", LotNo = "L2026-001",
+                    BuyDate = "2026-01-20", SecretNo = "SEC000001", WarrantyStartDate = "2026-01-20", WarrantyExpiredDate = "2027-01-20",
+                    WarrantyDuration = "12 tháng", Buyer = "Nguyễn Văn A", NetworkProductIdCode = "ELTS.PID.0001", Status = ProductIdStatus.Ok,
+                    RefNo1 = "HD26012001", RefBiz1 = "Hóa đơn bán", Remark = "Túi gạo ST25 bán lẻ — còn bảo hành" },
+                new ProductId { ProductID = "PID-ST25-0002", SpecCode = "8930001001", ProductionDate = "2026-01-05", LotNo = "L2026-001",
+                    BuyDate = "2026-02-02", SecretNo = "SEC000002", WarrantyStartDate = "2026-02-02", WarrantyExpiredDate = "2027-02-02",
+                    WarrantyDuration = "12 tháng", Buyer = "Trần Thị B", Status = ProductIdStatus.Checking,
+                    RefNo1 = "HD26020215", RefBiz1 = "Hóa đơn bán", Remark = "Khách báo lỗi bao bì — đang kiểm tra" },
+                new ProductId { ProductID = "PID-ST25-0003", SpecCode = "8930001001", ProductionDate = "2025-11-10", LotNo = "L2025-088",
+                    BuyDate = "2025-11-25", SecretNo = "SEC000003", WarrantyStartDate = "2025-11-25", WarrantyExpiredDate = "2026-11-25",
+                    WarrantyDuration = "12 tháng", Buyer = "Lê Văn C", Status = ProductIdStatus.Repairing,
+                    RefNo1 = "HD25112533", RefBiz1 = "Hóa đơn bán", Remark = "Đang sửa chữa/đổi trả" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -362,7 +381,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

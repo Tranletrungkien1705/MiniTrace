@@ -37,7 +37,8 @@ function Layout() {
         <NavLink to="/master-datas">Dữ liệu gốc</NavLink>
         <NavLink to="/network-orgs">Tổ chức mạng</NavLink>
         <NavLink to="/secrets">Số bí mật</NavLink>
-        <NavLink to="/stamp-pairs">Cặp tem</NavLink></nav>
+        <NavLink to="/stamp-pairs">Cặp tem</NavLink>
+        <NavLink to="/product-ids">Định danh sản phẩm</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1530,6 +1531,89 @@ function StampPairForm({ row, onClose, onSaved }) {
   )
 }
 
+function ProductIds() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.productIds(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (p) => {
+    if (!window.confirm(`Xóa định danh ${p.productID}?`)) return
+    try { const r = await api.deleteProductId(p.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Định danh sản phẩm</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / lô / người mua…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({})}>+ Thêm định danh</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Định danh sản phẩm (GS1 Prd_ProductID) — mỗi sản phẩm đã bán gắn một mã định danh duy nhất kèm lô, ngày sản xuất, số bí mật và thông tin bảo hành để tra cứu lịch sử sản phẩm.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã định danh</th><th>Quy cách</th><th>Lô</th><th>Ngày SX</th><th>Người mua</th><th>Bảo hành đến</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(p => (
+            <tr key={p.id}><td style={{ fontFamily: 'monospace' }}>{p.productID}</td><td>{p.specCode || '—'}</td>
+              <td>{p.lotNo || '—'}</td><td>{p.productionDate || '—'}</td><td>{p.buyer || '—'}</td>
+              <td>{p.warrantyExpiredDate || '—'}</td>
+              <td><Badge text={p.statusText} css={p.css} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(p)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(p)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>Chưa có định danh sản phẩm.</td></tr>}</tbody></table>
+      </div>
+      {edit && <ProductIdForm row={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function ProductIdForm({ row, onClose, onSaved }) {
+  const [f, setF] = useState({
+    id: row.id || 0, productID: row.productID || '', specCode: row.specCode || '', productionDate: row.productionDate || '',
+    lotNo: row.lotNo || '', buyDate: row.buyDate || '', secretNo: row.secretNo || '',
+    warrantyStartDate: row.warrantyStartDate || '', warrantyExpiredDate: row.warrantyExpiredDate || '', warrantyDuration: row.warrantyDuration || '',
+    refNo1: row.refNo1 || '', refBiz1: row.refBiz1 || '', refNo2: row.refNo2 || '', refBiz2: row.refBiz2 || '',
+    refNo3: row.refNo3 || '', refBiz3: row.refBiz3 || '', buyer: row.buyer || '', networkProductIdCode: row.networkProductIdCode || '',
+    status: row.status ?? 0, customField1: row.customField1 || '', customField2: row.customField2 || '',
+    customField3: row.customField3 || '', customField4: row.customField4 || '', customField5: row.customField5 || '', remark: row.remark || ''
+  })
+  const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveProductId({ ...f, status: Number(f.status) }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal wide title={f.id ? 'Sửa định danh sản phẩm' : 'Thêm định danh sản phẩm'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã định danh (ProductID) *"><input value={f.productID} onChange={e => up('productID', e.target.value)} placeholder="vd: PID-ST25-0001" /></Field>
+        <Field label="Quy cách (SpecCode)"><input value={f.specCode} onChange={e => up('specCode', e.target.value)} placeholder="vd: 8930001001" /></Field></div>
+      <div className="row"><Field label="Ngày sản xuất"><input value={f.productionDate} onChange={e => up('productionDate', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Số lô (LOTNo)"><input value={f.lotNo} onChange={e => up('lotNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Ngày mua (BuyDate)"><input value={f.buyDate} onChange={e => up('buyDate', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Số bí mật (SecretNo)"><input value={f.secretNo} onChange={e => up('secretNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Bảo hành từ"><input value={f.warrantyStartDate} onChange={e => up('warrantyStartDate', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Bảo hành đến"><input value={f.warrantyExpiredDate} onChange={e => up('warrantyExpiredDate', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Thời hạn BH"><input value={f.warrantyDuration} onChange={e => up('warrantyDuration', e.target.value)} placeholder="vd: 12 tháng" /></Field></div>
+      <div className="row"><Field label="Người mua (Buyer)"><input value={f.buyer} onChange={e => up('buyer', e.target.value)} /></Field>
+        <Field label="Mã định danh ngoài mạng"><input value={f.networkProductIdCode} onChange={e => up('networkProductIdCode', e.target.value)} /></Field>
+        <Field label="Trạng thái"><select value={f.status} onChange={e => up('status', e.target.value)}>
+          <option value={0}>OK</option><option value={1}>NG</option><option value={2}>Đang sửa chữa</option><option value={3}>Đang kiểm tra</option></select></Field></div>
+      <div className="row"><Field label="Tham chiếu 1 (số)"><input value={f.refNo1} onChange={e => up('refNo1', e.target.value)} /></Field>
+        <Field label="Tham chiếu 1 (nghiệp vụ)"><input value={f.refBiz1} onChange={e => up('refBiz1', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Tham chiếu 2 (số)"><input value={f.refNo2} onChange={e => up('refNo2', e.target.value)} /></Field>
+        <Field label="Tham chiếu 2 (nghiệp vụ)"><input value={f.refBiz2} onChange={e => up('refBiz2', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Tham chiếu 3 (số)"><input value={f.refNo3} onChange={e => up('refNo3', e.target.value)} /></Field>
+        <Field label="Tham chiếu 3 (nghiệp vụ)"><input value={f.refBiz3} onChange={e => up('refBiz3', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Trường mở rộng 1"><input value={f.customField1} onChange={e => up('customField1', e.target.value)} /></Field>
+        <Field label="Trường mở rộng 2"><input value={f.customField2} onChange={e => up('customField2', e.target.value)} /></Field>
+        <Field label="Trường mở rộng 3"><input value={f.customField3} onChange={e => up('customField3', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Trường mở rộng 4"><input value={f.customField4} onChange={e => up('customField4', e.target.value)} /></Field>
+        <Field label="Trường mở rộng 5"><input value={f.customField5} onChange={e => up('customField5', e.target.value)} /></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã định danh sản phẩm (ProductID); mã định danh duy nhất trong tenant; trạng thái thuộc OK/NG/Đang sửa chữa/Đang kiểm tra.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1557,6 +1641,7 @@ export default function App() {
         <Route path="network-orgs" element={<NetworkOrgs />} />
         <Route path="secrets" element={<Secrets />} />
         <Route path="stamp-pairs" element={<StampPairs />} />
+        <Route path="product-ids" element={<ProductIds />} />
       </Route>
     </Routes>
   )

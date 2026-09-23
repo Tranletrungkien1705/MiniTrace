@@ -87,7 +87,11 @@ export const api = {
   deleteSecret: (id) => req(`/secrets/${id}`, { method: 'DELETE' }),
   stampPairs: (q) => req(`/stamp-pairs${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveStampPair: (b) => req('/stamp-pairs', { method: 'POST', body: b }),
-  deleteStampPair: (id) => req(`/stamp-pairs/${id}`, { method: 'DELETE' })
+  deleteStampPair: (id) => req(`/stamp-pairs/${id}`, { method: 'DELETE' }),
+  productIds: (q) => req(`/product-ids${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  productId: (id) => req(`/product-ids/${id}`),
+  saveProductId: (b) => req('/product-ids', { method: 'POST', body: b }),
+  deleteProductId: (id) => req(`/product-ids/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

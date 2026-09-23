@@ -682,3 +682,55 @@ public class Verification : IOrgOwned
     public string? Note { get; set; }
     public TraceUnit Unit { get; set; } = null!;
 }
+
+/// <summary>
+/// Trạng thái định danh sản phẩm (ProductIDStatus của InBrandCloud Prd_ProductID).
+/// OK = đạt, NG = không đạt, REPAIRING = đang sửa chữa, CHECKING = đang kiểm tra.
+/// </summary>
+public enum ProductIdStatus
+{
+    Ok = 0,         // OK — đạt
+    Ng = 1,         // NG — không đạt
+    Repairing = 2,  // REPAIRING — đang sửa chữa
+    Checking = 3    // CHECKING — đang kiểm tra
+}
+
+/// <summary>
+/// Định danh sản phẩm (GS1 Product ID — Prd_ProductID của InBrandCloud).
+/// Mỗi dòng = 1 sản phẩm đã bán/đã giao gắn với một mã định danh (ProductID) duy nhất,
+/// kèm thông tin truy xuất nguồn gốc (lô, ngày sản xuất, số bí mật) và bảo hành
+/// (ngày bắt đầu/hết hạn, thời hạn bảo hành) — dùng để tra cứu lịch sử sản phẩm,
+/// xác thực chính hãng và xử lý bảo hành. Tương đương bảng Prd_ProductID của
+/// InBrandCloud ProductCenter (OS_PrdCenter_Prd_ProductID_Create/Update/Delete).
+/// </summary>
+public class ProductId : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string ProductID { get; set; } = "";       // ProductID — mã định danh sản phẩm (duy nhất trong tenant)
+    public string? SpecCode { get; set; }               // SpecCode — mã quy cách / chủng loại
+    public string? ProductionDate { get; set; }         // ProductionDate — ngày sản xuất
+    public string? LotNo { get; set; }                  // LOTNo — số lô
+    public string? BuyDate { get; set; }                // BuyDate — ngày mua
+    public string? SecretNo { get; set; }               // SecretNo — số bí mật (chống giả)
+    public string? WarrantyStartDate { get; set; }      // WarrantyStartDate — ngày bắt đầu bảo hành
+    public string? WarrantyExpiredDate { get; set; }    // WarrantyExpiredDate — ngày hết hạn bảo hành
+    public string? WarrantyDuration { get; set; }       // WarrantyDuration — thời hạn bảo hành
+    public string? RefNo1 { get; set; }                 // RefNo1 — tham chiếu 1 (số)
+    public string? RefBiz1 { get; set; }                // RefBiz1 — tham chiếu 1 (nghiệp vụ)
+    public string? RefNo2 { get; set; }                 // RefNo2 — tham chiếu 2 (số)
+    public string? RefBiz2 { get; set; }                // RefBiz2 — tham chiếu 2 (nghiệp vụ)
+    public string? RefNo3 { get; set; }                 // RefNo3 — tham chiếu 3 (số)
+    public string? RefBiz3 { get; set; }                // RefBiz3 — tham chiếu 3 (nghiệp vụ)
+    public string? Buyer { get; set; }                  // Buyer — người mua / khách hàng
+    public string? NetworkProductIdCode { get; set; }   // NetworkProductIDCode — mã định danh ngoài mạng
+    public ProductIdStatus Status { get; set; } = ProductIdStatus.Ok;  // ProductIDStatus
+    public string? CustomField1 { get; set; }           // CustomField1 — trường mở rộng 1
+    public string? CustomField2 { get; set; }           // CustomField2 — trường mở rộng 2
+    public string? CustomField3 { get; set; }           // CustomField3 — trường mở rộng 3
+    public string? CustomField4 { get; set; }           // CustomField4 — trường mở rộng 4
+    public string? CustomField5 { get; set; }           // CustomField5 — trường mở rộng 5
+    public string? Remark { get; set; }                 // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+}
