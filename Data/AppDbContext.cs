@@ -43,6 +43,7 @@ public class AppDbContext : DbContext
     public DbSet<ConfigColumnSearch> ConfigColumnSearches => Set<ConfigColumnSearch>();
     public DbSet<ManufacturedId> ManufacturedIds => Set<ManufacturedId>();
     public DbSet<NetworkMaster> NetworkMasters => Set<NetworkMaster>();
+    public DbSet<DistributionHistory> DistributionHistories => Set<DistributionHistory>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -223,6 +224,12 @@ public class AppDbContext : DbContext
         b.Entity<NetworkMaster>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.NetworkID }).IsUnique();   // mã mạng duy nhất trong tenant
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<DistributionHistory>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.IF_InvInHistNo }).IsUnique();   // mã bản ghi lịch sử duy nhất trong tenant
+            e.HasIndex(x => new { x.OrgId, x.IDNo });                        // tra cứu hành trình theo tem
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

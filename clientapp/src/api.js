@@ -100,7 +100,10 @@ export const api = {
   deleteManufacturedId: (id) => req(`/manufactured-ids/${id}`, { method: 'DELETE' }),
   networkMasters: (q) => req(`/network-masters${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveNetworkMaster: (b) => req('/network-masters', { method: 'POST', body: b }),
-  deleteNetworkMaster: (id) => req(`/network-masters/${id}`, { method: 'DELETE' })
+  deleteNetworkMaster: (id) => req(`/network-masters/${id}`, { method: 'DELETE' }),
+  distributionHistories: (q, refType) => req(`/distribution-histories?${refType !== undefined && refType !== null ? `refType=${refType}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`),
+  saveDistributionHistory: (b) => req('/distribution-histories', { method: 'POST', body: b }),
+  deleteDistributionHistory: (id) => req(`/distribution-histories/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

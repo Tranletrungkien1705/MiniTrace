@@ -125,6 +125,10 @@ public interface ITraceService
     Task<List<NetworkMaster>> NetworkMastersAsync(string? q);
     Task<(bool ok, string msg)> SaveNetworkMasterAsync(int id, string networkID, string networkName, string? groupNetworkID, string? coreAddr, string? pingAddr, string? xSysAddr, string? wsUrlAddr, string? wsUrlAddrNew, string? dbUrlAddr, string? mst, string? orgIdSln, string? minVersion, bool active, string? remark);
     Task<(bool ok, string msg)> DeleteNetworkMasterAsync(int id);
+    // Lịch sử phân phối / nhập-xuất kho theo tem (InvF_InventoryHistInOutID của InBrandCloud eTEM)
+    Task<List<DistributionHistoryView>> DistributionHistoriesAsync(string? q, HistRefType? refType);
+    Task<(bool ok, string msg)> SaveDistributionHistoryAsync(int id, string idNo, HistRefType refType, string? networkId, string? refNo, string? invCode, string? productionLotNo, string? boxNo, string? canNo, string? customerCode, string? customerName, string? plateNo, string? moocNo, string? driverName, string? driverPhoneNo, string? areaName, string? userKCS, bool flagIsError, string? remark);
+    Task<(bool ok, string msg)> DeleteDistributionHistoryAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -148,6 +152,12 @@ public record RecordSpecInput(string KdeCode, string? KdeValue);
 
 /// <summary>1 dòng ánh xạ tổ chức↔địa điểm đã join sang GLN (tương đương Mst_OrgIDMapGLN + Mst_GLN).</summary>
 public record OrgGlnView(int Id, string OrgCode, string GlnCode, string? GlnName, string? GpsLat, string? GpsLong, string? Remark, DateTime CreatedAt);
+
+/// <summary>1 dòng lịch sử phân phối đã join sang vùng thị trường (tương đương InvF_InventoryHistInOutID + Mst_MarketArea).</summary>
+public record DistributionHistoryView(int Id, string IF_InvInHistNo, string IDNo, HistRefType RefType, string RefTypeText, string? NetworkId,
+    string? RefNo, string? InvCode, string? ProductionLotNo, string? BoxNo, string? CanNo, string? CustomerCode, string? CustomerName,
+    string? PlateNo, string? MoocNo, string? DriverName, string? DriverPhoneNo, string? AreaName, string? AreaNameText, string? UserKCS,
+    bool FlagIsError, string? Remark, DateTime CreatedAt);
 
 /// <summary>1 tem trong hộp (tương đương 1 dòng Map_IDInBox).</summary>
 public record BoxItemView(int Id, string IDNo, string? ProductCode, string? InvCode, bool FlagActive, DateTime CreatedAt);
@@ -1802,5 +1812,95 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.NetworkMasters.Remove(nm);
         await db.SaveChangesAsync();
         return (true, "Đã xóa mạng lưới.");
+    }
+
+    // ===== Lịch sử phân phối / nhập-xuất kho theo tem (InvF_InventoryHistInOutID của InBrandCloud eTEM) =====
+    // Mỗi dòng = 1 lần di chuyển của tem (IDNo): nhập kho (IN) hoặc xuất kho tới khách hàng (OUT).
+    // Join sang Mst_MarketArea (theo AreaName) để làm giàu tên vùng thị trường (tương đương left join Mst_MarketArea).
+    public async Task<List<DistributionHistoryView>> DistributionHistoriesAsync(string? q, HistRefType? refType)
+    {
+        var query = db.DistributionHistories.AsQueryable();
+        if (refType.HasValue) query = query.Where(h => h.RefType == refType.Value);
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(h => h.IDNo.Contains(q) || h.IF_InvInHistNo.Contains(q)
+                || (h.CustomerName != null && h.CustomerName.Contains(q))
+                || (h.CustomerCode != null && h.CustomerCode.Contains(q))
+                || (h.DriverName != null && h.DriverName.Contains(q)));
+        var list = await query.ToListAsync();
+        // Join sang danh mục vùng thị trường để làm giàu tên vùng (tương đương left join Mst_MarketArea).
+        var areas = await db.MarketAreas.ToListAsync();
+        var byCode = areas.ToDictionary(a => a.Code, a => a.Name);
+        return list.OrderByDescending(h => h.CreatedAt).Take(500)
+            .Select(h =>
+            {
+                string? areaName = null;
+                if (!string.IsNullOrWhiteSpace(h.AreaName)) byCode.TryGetValue(h.AreaName!, out areaName);
+                return new DistributionHistoryView(h.Id, h.IF_InvInHistNo, h.IDNo, h.RefType,
+                    h.RefType == HistRefType.Out ? "Xuất kho" : "Nhập kho", h.NetworkId, h.RefNo, h.InvCode, h.ProductionLotNo,
+                    h.BoxNo, h.CanNo, h.CustomerCode, h.CustomerName, h.PlateNo, h.MoocNo, h.DriverName, h.DriverPhoneNo,
+                    h.AreaName, areaName, h.UserKCS, h.FlagIsError, h.Remark, h.CreatedAt);
+            }).ToList();
+    }
+
+    // Lưu lịch sử phân phối. Áp quy tắc InBrandCloud (InvF_InventoryHistInOutID: Save):
+    //  (1) Cần mã bản ghi lịch sử (IF_InvInHistNo) + mã tem (IDNo).
+    //  (2) Tem (IDNo) phải tồn tại trong kho số tem (Inv_InventoryGenID).
+    //  (3) Mã bản ghi lịch sử duy nhất trong tenant — chống trùng.
+    //  (4) Nếu gắn vùng thị trường (AreaName) thì vùng phải tồn tại trong danh mục Mst_MarketArea.
+    public async Task<(bool ok, string msg)> SaveDistributionHistoryAsync(int id, string idNo, HistRefType refType, string? networkId, string? refNo, string? invCode, string? productionLotNo, string? boxNo, string? canNo, string? customerCode, string? customerName, string? plateNo, string? moocNo, string? driverName, string? driverPhoneNo, string? areaName, string? userKCS, bool flagIsError, string? remark)
+    {
+        idNo = (idNo ?? "").Trim();
+        if (idNo.Length == 0) return (false, "Cần mã tem (IDNo).");
+        // (2) Tem phải tồn tại trong kho số tem.
+        if (!await db.Stamps.AnyAsync(s => s.IDNo == idNo)) return (false, $"Tem '{idNo}' không tồn tại trong kho số tem.");
+        // (4) Vùng thị trường (nếu có) phải tồn tại trong danh mục.
+        areaName = string.IsNullOrWhiteSpace(areaName) ? null : areaName.Trim();
+        if (areaName != null && !await db.MarketAreas.AnyAsync(m => m.Code == areaName))
+            return (false, $"Vùng thị trường '{areaName}' không tồn tại trong danh mục.");
+
+        DistributionHistory h;
+        if (id > 0)
+        {
+            h = await db.DistributionHistories.FirstOrDefaultAsync(x => x.Id == id) ?? null!;
+            if (h == null) return (false, "Không tìm thấy bản ghi lịch sử phân phối.");
+        }
+        else
+        {
+            // (1) Sinh mã bản ghi lịch sử nếu chưa có (tương đương IF_InvInHistNo = yyyyMMdd.HHmmss.ffff).
+            var histNo = $"H{DateTime.Now:yyMMddHHmmssfff}";
+            // (3) Mã bản ghi lịch sử duy nhất trong tenant.
+            while (await db.DistributionHistories.AnyAsync(x => x.IF_InvInHistNo == histNo)) histNo = $"H{DateTime.Now:yyMMddHHmmssfff}";
+            h = new DistributionHistory { IF_InvInHistNo = histNo };
+            db.DistributionHistories.Add(h);
+        }
+
+        h.IDNo = idNo; h.RefType = refType;
+        h.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        h.RefNo = string.IsNullOrWhiteSpace(refNo) ? null : refNo.Trim();
+        h.InvCode = string.IsNullOrWhiteSpace(invCode) ? null : invCode.Trim();
+        h.ProductionLotNo = string.IsNullOrWhiteSpace(productionLotNo) ? null : productionLotNo.Trim();
+        h.BoxNo = string.IsNullOrWhiteSpace(boxNo) ? null : boxNo.Trim();
+        h.CanNo = string.IsNullOrWhiteSpace(canNo) ? null : canNo.Trim();
+        h.CustomerCode = string.IsNullOrWhiteSpace(customerCode) ? null : customerCode.Trim();
+        h.CustomerName = string.IsNullOrWhiteSpace(customerName) ? null : customerName.Trim();
+        h.PlateNo = string.IsNullOrWhiteSpace(plateNo) ? null : plateNo.Trim();
+        h.MoocNo = string.IsNullOrWhiteSpace(moocNo) ? null : moocNo.Trim();
+        h.DriverName = string.IsNullOrWhiteSpace(driverName) ? null : driverName.Trim();
+        h.DriverPhoneNo = string.IsNullOrWhiteSpace(driverPhoneNo) ? null : driverPhoneNo.Trim();
+        h.AreaName = areaName;
+        h.UserKCS = string.IsNullOrWhiteSpace(userKCS) ? null : userKCS.Trim();
+        h.FlagIsError = flagIsError;
+        h.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật lịch sử phân phối." : "Đã thêm lịch sử phân phối.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteDistributionHistoryAsync(int id)
+    {
+        var h = await db.DistributionHistories.FirstOrDefaultAsync(x => x.Id == id);
+        if (h == null) return (false, "Không tìm thấy bản ghi lịch sử phân phối.");
+        db.DistributionHistories.Remove(h);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa lịch sử phân phối.");
     }
 }

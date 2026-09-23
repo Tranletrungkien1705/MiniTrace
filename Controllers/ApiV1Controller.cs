@@ -738,6 +738,32 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Lịch sử phân phối / nhập-xuất kho theo tem (InvF_InventoryHistInOutID của InBrandCloud eTEM) =====
+    [HttpGet("distribution-histories")]
+    public async Task<IActionResult> DistributionHistories([FromQuery] string? q, [FromQuery] int? refType)
+        => Ok((await svc.DistributionHistoriesAsync(q, refType.HasValue ? (HistRefType)refType.Value : null)).Select(h => new
+        {
+            h.Id, h.IF_InvInHistNo, h.IDNo, refType = (int)h.RefType, h.RefTypeText, h.NetworkId, h.RefNo, h.InvCode,
+            h.ProductionLotNo, h.BoxNo, h.CanNo, h.CustomerCode, h.CustomerName, h.PlateNo, h.MoocNo, h.DriverName,
+            h.DriverPhoneNo, h.AreaName, h.AreaNameText, h.UserKCS, h.FlagIsError, h.Remark, h.CreatedAt
+        }));
+
+    [HttpPost("distribution-histories")]
+    public async Task<IActionResult> SaveDistributionHistory([FromBody] DistributionHistoryReq r)
+    {
+        var (ok, msg) = await svc.SaveDistributionHistoryAsync(r.Id, r.IDNo ?? "", (HistRefType)r.RefType, r.NetworkId, r.RefNo,
+            r.InvCode, r.ProductionLotNo, r.BoxNo, r.CanNo, r.CustomerCode, r.CustomerName, r.PlateNo, r.MoocNo, r.DriverName,
+            r.DriverPhoneNo, r.AreaName, r.UserKCS, r.FlagIsError, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("distribution-histories/{id:int}")]
+    public async Task<IActionResult> DeleteDistributionHistory(int id)
+    {
+        var (ok, msg) = await svc.DeleteDistributionHistoryAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -871,5 +897,28 @@ public class NetworkMasterReq
     public string? OrgIdSln { get; set; }
     public string? MinVersion { get; set; }
     public bool Active { get; set; } = true;
+    public string? Remark { get; set; }
+}
+
+public class DistributionHistoryReq
+{
+    public int Id { get; set; }
+    public string? IDNo { get; set; }
+    public int RefType { get; set; }
+    public string? NetworkId { get; set; }
+    public string? RefNo { get; set; }
+    public string? InvCode { get; set; }
+    public string? ProductionLotNo { get; set; }
+    public string? BoxNo { get; set; }
+    public string? CanNo { get; set; }
+    public string? CustomerCode { get; set; }
+    public string? CustomerName { get; set; }
+    public string? PlateNo { get; set; }
+    public string? MoocNo { get; set; }
+    public string? DriverName { get; set; }
+    public string? DriverPhoneNo { get; set; }
+    public string? AreaName { get; set; }
+    public string? UserKCS { get; set; }
+    public bool FlagIsError { get; set; }
     public string? Remark { get; set; }
 }

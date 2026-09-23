@@ -837,3 +837,60 @@ public class NetworkMaster : IOrgOwned
     public string? Remark { get; set; }              // Remark — ghi chú
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Chiều di chuyển của một bản ghi lịch sử phân phối (RefType của InvF_InventoryHistInOutID).
+/// IN = nhập kho (hàng vào), OUT = xuất kho (hàng ra tới khách hàng/đại lý).
+/// </summary>
+public enum HistRefType
+{
+    In = 0,    // IN — nhập kho
+    Out = 1    // OUT — xuất kho (phân phối)
+}
+
+/// <summary>
+/// Lịch sử phân phối / nhập-xuất kho theo tem (GS1 Distribution History — InvF_InventoryHistInOutID của InBrandCloud eTEM).
+/// Mỗi dòng = 1 lần di chuyển của một tem sản phẩm (IDNo): nhập kho (RefType=IN) hoặc xuất kho tới khách hàng
+/// (RefType=OUT). Đây là mắt xích "phân phối" của chuỗi truy xuất: nối tem số với kho, khách hàng nhận hàng,
+/// tài xế/vận chuyển (PlateNo/MoocNo/DriverName/DriverPhoneNo) và vùng thị trường (AreaName).
+/// Khi truy vấn hành trình, hệ thống join sang Mst_MarketArea (theo AreaName) và Mst_Customer (theo CustomerCode)
+/// để làm giàu tên vùng thị trường + địa chỉ/điện thoại khách hàng (doc 09 §2.1/§6).
+/// </summary>
+public class DistributionHistory : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string IF_InvInHistNo { get; set; } = "";   // IF_InvInHistNo — mã bản ghi lịch sử (duy nhất trong tenant)
+    public string IDNo { get; set; } = "";             // IDNo — số định danh tem sản phẩm (tham chiếu kho số tem)
+    public string? NetworkId { get; set; }              // NetworkID — môi trường/loại mạng áp dụng
+    public string? RefNo { get; set; }                  // RefNo — số chứng từ tham chiếu
+    public HistRefType RefType { get; set; } = HistRefType.In;  // RefType — IN (nhập kho) / OUT (xuất kho)
+    public string? IF_InvInNo { get; set; }             // IF_InvInNo — số phiếu nhập kho
+    public string? InvCode { get; set; }                // InvCode — mã kho
+    public string? ProductionDate { get; set; }         // ProductionDate — ngày sản xuất
+    public string? PackageDate { get; set; }            // PackageDate — ngày đóng gói
+    public string? ProductionLotNo { get; set; }        // ProductionLotNo — lô sản xuất
+    public string? ShiftInCode { get; set; }            // ShiftInCode — ca sản xuất
+    public string? PrintDate { get; set; }              // PrintDate — ngày in tem
+    public string? BoxNo { get; set; }                  // BoxNo — mã hộp
+    public string? CanNo { get; set; }                  // CanNo — mã thùng
+    public string? IF_InvOutNo { get; set; }            // IF_InvOutNo — số phiếu xuất kho
+    public string? InvFOutType { get; set; }            // InvFOutType — loại xuất kho
+    public string? OrgID_Customer { get; set; }         // OrgID_Customer — mã tổ chức khách hàng
+    public string? OrgID_CustomerCurr { get; set; }     // OrgID_CustomerCurr — mã tổ chức khách hàng hiện tại
+    public string? CustomerCode { get; set; }           // CustomerCode — mã khách hàng nhận
+    public string? CustomerName { get; set; }           // CustomerName — tên khách hàng nhận
+    public string? PlateNo { get; set; }                // PlateNo — biển số xe vận chuyển
+    public string? MoocNo { get; set; }                 // MoocNo — số mooc/rơ-moóc
+    public string? DriverName { get; set; }             // DriverName — tên tài xế
+    public string? DriverPhoneNo { get; set; }          // DriverPhoneNo — điện thoại tài xế
+    public string? UserKCS { get; set; }                // UserKCS — người KCS
+    public string? AreaName { get; set; }               // AreaName — mã vùng thị trường (tham chiếu Mst_MarketArea)
+    public string? IVerifiedIDInOutNo { get; set; }     // IVerifiedIDInOutNo — mã bản ghi xác thực nhập/xuất
+    public string? CustomerCodeSysDelivery { get; set; }// CustomerCodeSysDelivery — mã khách hàng giao (hệ thống)
+    public string? CustomerNameDelivery { get; set; }   // CustomerNameDelivery — tên khách hàng giao
+    public string? AreaCodeDelivery { get; set; }       // AreaCodeDelivery — mã vùng giao
+    public bool FlagIsError { get; set; }               // FlagIsError — 1: ghép lỗi, 0: ghép thành công
+    public string? Remark { get; set; }                 // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}

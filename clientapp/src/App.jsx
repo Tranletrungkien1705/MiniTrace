@@ -41,7 +41,8 @@ function Layout() {
         <NavLink to="/product-ids">Định danh sản phẩm</NavLink>
         <NavLink to="/config-column-searches">Cấu hình trường tra cứu</NavLink>
         <NavLink to="/manufactured-ids">Dãy sản xuất</NavLink>
-        <NavLink to="/network-masters">Mạng lưới</NavLink></nav>
+        <NavLink to="/network-masters">Mạng lưới</NavLink>
+        <NavLink to="/distribution-histories">Lịch sử phân phối</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1860,6 +1861,7 @@ export default function App() {
         <Route path="config-column-searches" element={<ConfigColumnSearches />} />
         <Route path="manufactured-ids" element={<ManufacturedIds />} />
         <Route path="network-masters" element={<NetworkMasters />} />
+        <Route path="distribution-histories" element={<DistributionHistories />} />
       </Route>
     </Routes>
   )

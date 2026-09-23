@@ -422,6 +422,32 @@ public static class Seeder
                     Mst = "MST-DL-HCM", MinVersion = "20210611", Active = false, Remark = "Môi trường test — tạm ngưng" });
             await db.SaveChangesAsync();
         }
+
+        // Lịch sử phân phối / nhập-xuất kho theo tem (InvF_InventoryHistInOutID của InBrandCloud eTEM) — hành trình phân phối mẫu.
+        if (!await db.DistributionHistories.AnyAsync())
+        {
+            db.DistributionHistories.AddRange(
+                new DistributionHistory { IF_InvInHistNo = "H2601010001", IDNo = "P000001", NetworkId = "Manufacturer", RefNo = "PN2601010001",
+                    RefType = HistRefType.In, IF_InvInNo = "PN2601010001", InvCode = "KHO-FG-ST", ProductionDate = "2026-01-05", PackageDate = "2026-01-06",
+                    ProductionLotNo = "L2026-001", ShiftInCode = "CA1", PrintDate = "2026-01-06", BoxNo = "B2601010001", UserKCS = "Nguyễn Văn KCS",
+                    IVerifiedIDInOutNo = "IV2601010001", FlagIsError = false, Remark = "Nhập kho thành phẩm tem P000001" },
+                new DistributionHistory { IF_InvInHistNo = "H2601100002", IDNo = "P000001", NetworkId = "Distributor", RefNo = "PX2601100002",
+                    RefType = HistRefType.Out, IF_InvOutNo = "PX2601100002", InvFOutType = "SALE", InvCode = "KHO-FG-ST", ProductionLotNo = "L2026-001",
+                    BoxNo = "B2601010001", OrgID_Customer = "MST-DL-HCM", CustomerCode = "DL-HCM-01", CustomerName = "Đại lý phân phối TP.HCM",
+                    PlateNo = "51C-12345", MoocNo = "MOOC-01", DriverName = "Trần Văn Tài", DriverPhoneNo = "0903333444", AreaName = "MA-TPHCM",
+                    IVerifiedIDInOutNo = "IV2601100002", FlagIsError = false, Remark = "Xuất kho → Đại lý cấp 1 TP.HCM" },
+                new DistributionHistory { IF_InvInHistNo = "H2601120003", IDNo = "P000002", NetworkId = "Distributor", RefNo = "PX2601120003",
+                    RefType = HistRefType.Out, IF_InvOutNo = "PX2601120003", InvFOutType = "SALE", InvCode = "KHO-FG-ST", ProductionLotNo = "L2026-001",
+                    BoxNo = "B2601010001", OrgID_Customer = "MST-BANLE-COOP", CustomerCode = "COOP-Q1", CustomerName = "Siêu thị Co.opmart Q.1",
+                    PlateNo = "51C-67890", DriverName = "Lê Văn Giao", DriverPhoneNo = "0905555666", AreaName = "MA-MIENN",
+                    IVerifiedIDInOutNo = "IV2601120003", FlagIsError = false, Remark = "Xuất kho → điểm bán lẻ" },
+                new DistributionHistory { IF_InvInHistNo = "H2601150004", IDNo = "P000003", NetworkId = "Distributor", RefNo = "PX2601150004",
+                    RefType = HistRefType.Out, IF_InvOutNo = "PX2601150004", InvFOutType = "SALE", InvCode = "KHO-FG-ST", ProductionLotNo = "L2026-001",
+                    BoxNo = "B2601010001", OrgID_Customer = "MST-DL-HCM", CustomerCode = "DL-HCM-01", CustomerName = "Đại lý phân phối TP.HCM",
+                    PlateNo = "51C-12345", DriverName = "Trần Văn Tài", DriverPhoneNo = "0903333444", AreaName = "MA-TPHCM",
+                    IVerifiedIDInOutNo = "IV2601150004", FlagIsError = true, Remark = "Ghép tem lỗi — cần kiểm tra lại" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -435,7 +461,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",
