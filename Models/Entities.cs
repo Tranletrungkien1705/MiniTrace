@@ -136,6 +136,81 @@ public class Gln : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
 
+/// <summary>
+/// Trạng thái mẫu loại tổ chức (TplNWTStatus của InBrandCloud eTEM).
+/// PENDING = chờ duyệt (mới tạo/sửa), APPROVE = đã duyệt, CANCEL = đã hủy.
+/// </summary>
+public enum TplNwtStatus
+{
+    Pending = 0,   // PENDING — chờ duyệt
+    Approve = 1,   // APPROVE — đã duyệt
+    Cancel = 2     // CANCEL — đã hủy
+}
+
+/// <summary>
+/// Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM).
+/// Định nghĩa "bộ khung" sự kiện (CTE) + thành phần dữ liệu (KDE) + ánh xạ CTE_KDE
+/// áp dụng cho một loại tổ chức trong chuỗi cung ứng (Nhà sản xuất, Kho, Đại lý, Cửa hàng…).
+/// Khi một tổ chức thuộc loại này tham gia chuỗi, hệ thống lấy mẫu làm chuẩn để ghi sự kiện.
+/// </summary>
+public class TemplateNWType : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string TplNWType { get; set; } = "";     // TplNWType — mã loại tổ chức (vd: MANUFACTURER)
+    public string Description { get; set; } = "";     // TplNWTDesc — tên loại tổ chức
+    public TplNwtStatus Status { get; set; } = TplNwtStatus.Pending;  // TplNWTStatus
+    public string? Remark { get; set; }               // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+    public List<TplNwtCte> Ctes { get; set; } = [];
+    public List<TplNwtKde> Kdes { get; set; } = [];
+    public List<TplNwtCteKde> CteKdes { get; set; } = [];
+}
+
+/// <summary>Sự kiện (CTE) thuộc một mẫu loại tổ chức (TplNWT_Mst_CTE của InBrandCloud eTEM).</summary>
+public class TplNwtCte : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int TemplateId { get; set; }
+    public string CteCode { get; set; } = "";        // CTECode
+    public string? CteDesc { get; set; }              // CTEDesc — diễn giải (snapshot)
+    public string? ApiLink { get; set; }              // APIsLink — API đích
+    public bool Active { get; set; } = true;          // FlagActive
+    public TemplateNWType Template { get; set; } = null!;
+}
+
+/// <summary>Thành phần dữ liệu (KDE) thuộc một mẫu loại tổ chức (TplNWT_Mst_KDE của InBrandCloud eTEM).</summary>
+public class TplNwtKde : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int TemplateId { get; set; }
+    public string KdeCode { get; set; } = "";        // KDECode
+    public string? KdeDesc { get; set; }              // KDEDesc — mô tả (snapshot)
+    public string? DataType { get; set; }             // DataType
+    public string? RefNoList { get; set; }            // RefNoList
+    public bool FlagList { get; set; }                // FlagList
+    public bool FlagQuery { get; set; }               // FlagQuery
+    public bool Active { get; set; } = true;          // FlagActive
+    public TemplateNWType Template { get; set; } = null!;
+}
+
+/// <summary>Ánh xạ CTE↔KDE trong một mẫu loại tổ chức (TplNWT_CTE_KDE của InBrandCloud eTEM).</summary>
+public class TplNwtCteKde : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public int TemplateId { get; set; }
+    public string CteCode { get; set; } = "";        // CTECode
+    public string KdeCode { get; set; } = "";        // KDECode
+    public string? ApiLink { get; set; }              // APIsLink
+    public bool FlagOsOrgView { get; set; }           // FlagOSOrgView
+    public bool FlagKey { get; set; }                 // FlagKey
+    public TemplateNWType Template { get; set; } = null!;
+}
+
 /// <summary>Kết quả xác thực khi người tiêu dùng quét mã (chống hàng giả).</summary>
 public enum VerifyStatus
 {

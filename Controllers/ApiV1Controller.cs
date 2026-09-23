@@ -176,6 +176,53 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM) =====
+    [HttpGet("templates")]
+    public async Task<IActionResult> Templates([FromQuery] string? q)
+        => Ok((await svc.TemplatesAsync(q)).Select(t => new
+        {
+            t.Id, t.TplNWType, t.Description, status = (int)t.Status, statusText = Ui.TplStatus(t.Status).text, css = Ui.TplStatus(t.Status).css,
+            t.Remark, t.CreatedAt, ctes = t.Ctes.Count, kdes = t.Kdes.Count, maps = t.CteKdes.Count
+        }));
+
+    [HttpGet("templates/{id:int}")]
+    public async Task<IActionResult> Template(int id)
+    {
+        var t = await svc.GetTemplateAsync(id);
+        if (t == null) return NotFound(new { error = "Không tìm thấy mẫu loại tổ chức." });
+        return Ok(new
+        {
+            t.Id, t.TplNWType, t.Description, status = (int)t.Status, statusText = Ui.TplStatus(t.Status).text, t.Remark, t.CreatedAt,
+            ctes = t.Ctes.OrderBy(c => c.CteCode).Select(c => new { c.CteCode, c.CteDesc, c.ApiLink, c.Active }),
+            kdes = t.Kdes.OrderBy(k => k.KdeCode).Select(k => new { k.KdeCode, k.KdeDesc, k.DataType, k.RefNoList, k.FlagList, k.FlagQuery, k.Active }),
+            cteKdes = t.CteKdes.OrderBy(m => m.CteCode).ThenBy(m => m.KdeCode).Select(m => new { m.CteCode, m.KdeCode, m.ApiLink, m.FlagKey, m.FlagOsOrgView })
+        });
+    }
+
+    [HttpPost("templates")]
+    public async Task<IActionResult> SaveTemplate([FromBody] TemplateReq r)
+    {
+        var ctes = (r.Ctes ?? []).Select(c => new TplNwtCteInput(c.CteCode ?? "", c.CteDesc, c.ApiLink, c.Active)).ToList();
+        var kdes = (r.Kdes ?? []).Select(k => new TplNwtKdeInput(k.KdeCode ?? "", k.KdeDesc, k.DataType, k.RefNoList, k.FlagList, k.FlagQuery, k.Active)).ToList();
+        var maps = (r.CteKdes ?? []).Select(m => new TplNwtCteKdeInput(m.CteCode ?? "", m.KdeCode ?? "", m.ApiLink, m.FlagKey, m.FlagOsOrgView)).ToList();
+        var (ok, msg) = await svc.SaveTemplateAsync(r.Id, r.TplNWType ?? "", r.Description ?? "", r.Remark, ctes, kdes, maps);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("templates/{id:int}/approve")]
+    public async Task<IActionResult> ApproveTemplate(int id)
+    {
+        var (ok, msg) = await svc.ApproveTemplateAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("templates/{id:int}")]
+    public async Task<IActionResult> DeleteTemplate(int id)
+    {
+        var (ok, msg) = await svc.DeleteTemplateAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -209,4 +256,8 @@ public class KdeReq { public int Id { get; set; } public string? Code { get; set
 public class CteKdeReq { public string? CteCode { get; set; } public List<CteKdeItemReq>? Items { get; set; } }
 public class CteKdeItemReq { public string? KdeCode { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 public class GlnReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? GpsLat { get; set; } public string? GpsLong { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; }
+public class TemplateReq { public int Id { get; set; } public string? TplNWType { get; set; } public string? Description { get; set; } public string? Remark { get; set; } public List<TplCteItemReq>? Ctes { get; set; } public List<TplKdeItemReq>? Kdes { get; set; } public List<TplCteKdeItemReq>? CteKdes { get; set; } }
+public class TplCteItemReq { public string? CteCode { get; set; } public string? CteDesc { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
+public class TplKdeItemReq { public string? KdeCode { get; set; } public string? KdeDesc { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }
+public class TplCteKdeItemReq { public string? CteCode { get; set; } public string? KdeCode { get; set; } public string? ApiLink { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 

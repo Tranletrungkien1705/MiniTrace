@@ -35,6 +35,12 @@ public interface ITraceService
     Task<List<Gln>> GlnsAsync(string? q);
     Task<(bool ok, string msg)> SaveGlnAsync(int id, string code, string name, string? gpsLat, string? gpsLong, string? remark, bool active);
     Task<(bool ok, string msg)> DeleteGlnAsync(int id);
+    // Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM)
+    Task<List<TemplateNWType>> TemplatesAsync(string? q);
+    Task<TemplateNWType?> GetTemplateAsync(int id);
+    Task<(bool ok, string msg)> SaveTemplateAsync(int id, string tplNWType, string description, string? remark, List<TplNwtCteInput> ctes, List<TplNwtKdeInput> kdes, List<TplNwtCteKdeInput> cteKdes);
+    Task<(bool ok, string msg)> DeleteTemplateAsync(int id);
+    Task<(bool ok, string msg)> ApproveTemplateAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -43,6 +49,15 @@ public record VerifyResult(string Code, string Product, string? Origin, string? 
 
 /// <summary>1 dòng ánh xạ CTE↔KDE khi lưu (tương đương 1 dòng bảng CTE_KDE).</summary>
 public record CteKdeInput(string KdeCode, bool FlagKey, bool FlagOsOrgView);
+
+/// <summary>1 sự kiện (CTE) trong mẫu loại tổ chức (TplNWT_Mst_CTE).</summary>
+public record TplNwtCteInput(string CteCode, string? CteDesc, string? ApiLink, bool Active);
+
+/// <summary>1 thành phần dữ liệu (KDE) trong mẫu loại tổ chức (TplNWT_Mst_KDE).</summary>
+public record TplNwtKdeInput(string KdeCode, string? KdeDesc, string? DataType, string? RefNoList, bool FlagList, bool FlagQuery, bool Active);
+
+/// <summary>1 ánh xạ CTE↔KDE trong mẫu loại tổ chức (TplNWT_CTE_KDE).</summary>
+public record TplNwtCteKdeInput(string CteCode, string KdeCode, string? ApiLink, bool FlagKey, bool FlagOsOrgView);
 
 public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
@@ -353,6 +368,108 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Glns.Remove(gln);
         await db.SaveChangesAsync();
         return (true, "Đã xóa địa điểm.");
+    }
+
+    // ===== Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM) =====
+    // "Bộ khung" sự kiện (CTE) + thành phần dữ liệu (KDE) + ánh xạ CTE_KDE cho một loại tổ chức.
+    public async Task<List<TemplateNWType>> TemplatesAsync(string? q)
+    {
+        var query = db.Templates.Include(t => t.Ctes).Include(t => t.Kdes).Include(t => t.CteKdes).AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(t => t.TplNWType.Contains(q) || t.Description.Contains(q));
+        var list = await query.ToListAsync();
+        return list.OrderBy(t => t.TplNWType).ToList();
+    }
+
+    public Task<TemplateNWType?> GetTemplateAsync(int id) =>
+        db.Templates.Include(t => t.Ctes).Include(t => t.Kdes).Include(t => t.CteKdes)
+          .FirstOrDefaultAsync(t => t.Id == id);
+
+    // Lưu mẫu loại tổ chức (thay thế toàn bộ CTE/KDE/CTE_KDE con). Áp quy tắc nghiệp vụ InBrandCloud:
+    //  (1) Cần mã loại tổ chức (TplNWType) + tên (TplNWTDesc).
+    //  (2) Phải có ÍT NHẤT 1 sự kiện (CTE) và ÍT NHẤT 1 thành phần dữ liệu (KDE).
+    //  (3) Mẫu đã APPROVE thì không cho sửa (phải hủy/duyệt lại) — giữ toàn vẹn mẫu đã phát hành.
+    //  (4) Mọi CTE/KDE tham chiếu phải tồn tại trong danh mục; ánh xạ CTE_KDE phải nằm trong tập đã chọn.
+    public async Task<(bool ok, string msg)> SaveTemplateAsync(int id, string tplNWType, string description, string? remark,
+        List<TplNwtCteInput> ctes, List<TplNwtKdeInput> kdes, List<TplNwtCteKdeInput> cteKdes)
+    {
+        tplNWType = (tplNWType ?? "").Trim();
+        description = (description ?? "").Trim();
+        if (tplNWType.Length == 0) return (false, "Cần mã loại tổ chức (TplNWType).");
+        if (description.Length == 0) return (false, "Cần tên loại tổ chức (TplNWTDesc).");
+        if (await db.Templates.AnyAsync(t => t.TplNWType == tplNWType && t.Id != id)) return (false, $"Mã '{tplNWType}' đã tồn tại.");
+
+        ctes ??= []; kdes ??= []; cteKdes ??= [];
+        var cleanCtes = ctes.Where(c => !string.IsNullOrWhiteSpace(c.CteCode)).GroupBy(c => c.CteCode.Trim()).Select(g => g.First()).ToList();
+        var cleanKdes = kdes.Where(k => !string.IsNullOrWhiteSpace(k.KdeCode)).GroupBy(k => k.KdeCode.Trim()).Select(g => g.First()).ToList();
+        if (cleanCtes.Count == 0) return (false, "Mẫu phải có ít nhất 1 sự kiện (CTE).");
+        if (cleanKdes.Count == 0) return (false, "Mẫu phải có ít nhất 1 thành phần dữ liệu (KDE).");
+
+        // Kiểm tra các mã CTE/KDE tham chiếu tồn tại trong danh mục.
+        var cteCodes = cleanCtes.Select(c => c.CteCode.Trim()).ToList();
+        var kdeCodes = cleanKdes.Select(k => k.KdeCode.Trim()).ToList();
+        var existCtes = await db.Ctes.Where(c => cteCodes.Contains(c.Code)).Select(c => c.Code).ToListAsync();
+        var existKdes = await db.Kdes.Where(k => kdeCodes.Contains(k.Code)).Select(k => k.Code).ToListAsync();
+        var missCte = cteCodes.Except(existCtes).ToList();
+        var missKde = kdeCodes.Except(existKdes).ToList();
+        if (missCte.Count > 0) return (false, $"Sự kiện không tồn tại: {string.Join(", ", missCte)}.");
+        if (missKde.Count > 0) return (false, $"Thành phần không tồn tại: {string.Join(", ", missKde)}.");
+
+        // Ánh xạ CTE_KDE phải nằm trong tập CTE/KDE đã chọn.
+        var cleanMaps = cteKdes.Where(m => !string.IsNullOrWhiteSpace(m.CteCode) && !string.IsNullOrWhiteSpace(m.KdeCode))
+            .Select(m => new TplNwtCteKdeInput(m.CteCode.Trim(), m.KdeCode.Trim(), m.ApiLink, m.FlagKey, m.FlagOsOrgView))
+            .GroupBy(m => (m.CteCode, m.KdeCode)).Select(g => g.First()).ToList();
+        var badMap = cleanMaps.FirstOrDefault(m => !cteCodes.Contains(m.CteCode) || !kdeCodes.Contains(m.KdeCode));
+        if (badMap != null) return (false, $"Ánh xạ {badMap.CteCode}↔{badMap.KdeCode} không thuộc tập sự kiện/thành phần đã chọn.");
+
+        TemplateNWType tpl;
+        if (id > 0)
+        {
+            tpl = await db.Templates.Include(t => t.Ctes).Include(t => t.Kdes).Include(t => t.CteKdes).FirstOrDefaultAsync(t => t.Id == id) ?? null!;
+            if (tpl == null) return (false, "Không tìm thấy mẫu loại tổ chức.");
+            // Quy tắc (3): mẫu đã duyệt không cho sửa.
+            if (tpl.Status == TplNwtStatus.Approve) return (false, "Mẫu đã duyệt — không thể sửa. Hãy hủy duyệt trước.");
+            db.TplNwtCtes.RemoveRange(tpl.Ctes);
+            db.TplNwtKdes.RemoveRange(tpl.Kdes);
+            db.TplNwtCteKdes.RemoveRange(tpl.CteKdes);
+        }
+        else { tpl = new TemplateNWType(); db.Templates.Add(tpl); }
+
+        tpl.TplNWType = tplNWType; tpl.Description = description;
+        tpl.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        tpl.Status = TplNwtStatus.Pending;   // mọi thay đổi đưa mẫu về trạng thái chờ duyệt
+        await db.SaveChangesAsync();
+
+        foreach (var c in cleanCtes)
+            db.TplNwtCtes.Add(new TplNwtCte { TemplateId = tpl.Id, CteCode = c.CteCode.Trim(), CteDesc = c.CteDesc, ApiLink = c.ApiLink, Active = c.Active });
+        foreach (var k in cleanKdes)
+            db.TplNwtKdes.Add(new TplNwtKde { TemplateId = tpl.Id, KdeCode = k.KdeCode.Trim(), KdeDesc = k.KdeDesc, DataType = k.DataType, RefNoList = k.RefNoList, FlagList = k.FlagList, FlagQuery = k.FlagQuery, Active = k.Active });
+        foreach (var m in cleanMaps)
+            db.TplNwtCteKdes.Add(new TplNwtCteKde { TemplateId = tpl.Id, CteCode = m.CteCode, KdeCode = m.KdeCode, ApiLink = m.ApiLink, FlagKey = m.FlagKey, FlagOsOrgView = m.FlagOsOrgView });
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật mẫu loại tổ chức." : "Đã thêm mẫu loại tổ chức.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteTemplateAsync(int id)
+    {
+        var tpl = await db.Templates.Include(t => t.Ctes).Include(t => t.Kdes).Include(t => t.CteKdes).FirstOrDefaultAsync(t => t.Id == id);
+        if (tpl == null) return (false, "Không tìm thấy mẫu loại tổ chức.");
+        db.TplNwtCtes.RemoveRange(tpl.Ctes);
+        db.TplNwtKdes.RemoveRange(tpl.Kdes);
+        db.TplNwtCteKdes.RemoveRange(tpl.CteKdes);
+        db.Templates.Remove(tpl);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa mẫu loại tổ chức.");
+    }
+
+    // Duyệt mẫu (PENDING → APPROVE). Mẫu đã duyệt là chuẩn để ghi sự kiện cho loại tổ chức đó.
+    public async Task<(bool ok, string msg)> ApproveTemplateAsync(int id)
+    {
+        var tpl = await db.Templates.FirstOrDefaultAsync(t => t.Id == id);
+        if (tpl == null) return (false, "Không tìm thấy mẫu loại tổ chức.");
+        if (tpl.Status == TplNwtStatus.Approve) return (false, "Mẫu đã được duyệt.");
+        tpl.Status = TplNwtStatus.Approve;
+        await db.SaveChangesAsync();
+        return (true, $"Đã duyệt mẫu '{tpl.TplNWType}'.");
     }
 
     private static string NewCode() => "89" + Guid.NewGuid().ToString("N")[..10].ToUpperInvariant();

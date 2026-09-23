@@ -23,7 +23,8 @@ function Layout() {
         <NavLink to="/" end>Tổng quan</NavLink><NavLink to="/units">Đơn vị truy xuất</NavLink>
         <NavLink to="/products">Sản phẩm</NavLink><NavLink to="/trace">Tra cứu</NavLink>
         <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink>
-        <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink></nav>
+        <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink>
+        <NavLink to="/templates">Mẫu loại tổ chức</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -442,6 +443,115 @@ function GlnForm({ gln, onClose, onSaved }) {
   )
 }
 
+function Templates() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.templates(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (t) => {
+    if (!window.confirm(`Xóa mẫu ${t.tplNWType}?`)) return
+    try { const r = await api.deleteTemplate(t.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  const approve = async (t) => {
+    try { const r = await api.approveTemplate(t.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Mẫu loại tổ chức</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / tên…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0 })}>+ Thêm mẫu</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Mẫu loại tổ chức (GS1 Network Type Template) — "bộ khung" sự kiện (CTE) + thành phần dữ liệu (KDE) + ánh xạ áp dụng cho một loại tổ chức trong chuỗi cung ứng (Nhà sản xuất, Kho, Đại lý…).</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (TplNWType)</th><th>Tên loại tổ chức</th><th className="right">Sự kiện</th><th className="right">Thành phần</th><th className="right">Ánh xạ</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(t => (
+            <tr key={t.id}><td style={{ fontFamily: 'monospace' }}>{t.tplNWType}</td><td>{t.description}</td>
+              <td className="right">{t.ctes}</td><td className="right">{t.kdes}</td><td className="right">{t.maps}</td>
+              <td><Badge text={t.statusText} css={t.css} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                {t.status === 0 && <button className="btn ghost sm" onClick={() => approve(t)}>Duyệt</button>}{' '}
+                <button className="btn ghost sm" onClick={() => setEdit(t)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(t)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có mẫu loại tổ chức.</td></tr>}</tbody></table>
+      </div>
+      {edit && <TemplateForm tpl={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function TemplateForm({ tpl, onClose, onSaved }) {
+  const [f, setF] = useState({ id: tpl.id, tplNWType: tpl.tplNWType || '', description: tpl.description || '', remark: tpl.remark || '' })
+  const [ctes, setCtes] = useState([]); const [kdes, setKdes] = useState([]); const [maps, setMaps] = useState([])
+  const [selCtes, setSelCtes] = useState([]); const [selKdes, setSelKdes] = useState([])
+  const [err, setErr] = useState(''); const [loading, setLoading] = useState(true)
+  const up = (k, v) => setF({ ...f, [k]: v })
+  useEffect(() => {
+    Promise.all([api.ctes(), api.kdes()]).then(([c, k]) => { setCtes(c.data); setKdes(k.data) })
+    if (tpl.id) api.template(tpl.id).then(r => {
+      setSelCtes(r.data.ctes.map(c => c.cteCode)); setSelKdes(r.data.kdes.map(k => k.kdeCode))
+      setMaps(r.data.cteKdes.map(m => ({ cteCode: m.cteCode, kdeCode: m.kdeCode, flagKey: m.flagKey, flagOsOrgView: m.flagOsOrgView })))
+    }).finally(() => setLoading(false))
+    else setLoading(false)
+  }, [tpl.id])
+  const toggleCte = (code) => setSelCtes(selCtes.includes(code) ? selCtes.filter(x => x !== code) : [...selCtes, code])
+  const toggleKde = (code) => setSelKdes(selKdes.includes(code) ? selKdes.filter(x => x !== code) : [...selKdes, code])
+  const hasMap = (c, k) => maps.some(m => m.cteCode === c && m.kdeCode === k)
+  const toggleMap = (c, k) => setMaps(hasMap(c, k) ? maps.filter(m => !(m.cteCode === c && m.kdeCode === k)) : [...maps, { cteCode: c, kdeCode: k, flagKey: false, flagOsOrgView: false }])
+  const setMapFlag = (c, k, key, val) => setMaps(maps.map(m => (m.cteCode === c && m.kdeCode === k) ? { ...m, [key]: val } : m))
+  const save = async () => {
+    try {
+      const body = {
+        id: f.id, tplNWType: f.tplNWType, description: f.description, remark: f.remark,
+        ctes: selCtes.map(c => ({ cteCode: c, active: true })),
+        kdes: selKdes.map(k => ({ kdeCode: k, active: true })),
+        cteKdes: maps.filter(m => selCtes.includes(m.cteCode) && selKdes.includes(m.kdeCode))
+      }
+      await api.saveTemplate(body); onSaved()
+    } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa mẫu ${f.tplNWType}` : 'Thêm mẫu loại tổ chức'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã loại tổ chức (TplNWType) *"><input value={f.tplNWType} onChange={e => up('tplNWType', e.target.value)} placeholder="vd: MANUFACTURER" /></Field>
+        <Field label="Tên loại tổ chức *"><input value={f.description} onChange={e => up('description', e.target.value)} placeholder="vd: Nhà sản xuất" /></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark} onChange={e => up('remark', e.target.value)} /></Field>
+      {loading ? <p className="muted">Đang tải…</p> : (
+        <>
+          <div className="section-t">Sự kiện (CTE) trong mẫu</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {ctes.map(c => (
+              <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={selCtes.includes(c.code)} onChange={() => toggleCte(c.code)} /> {c.code}</label>))}
+          </div>
+          <div className="section-t">Thành phần dữ liệu (KDE) trong mẫu</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+            {kdes.map(k => (
+              <label key={k.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                <input type="checkbox" style={{ width: 'auto' }} checked={selKdes.includes(k.code)} onChange={() => toggleKde(k.code)} /> {k.code}</label>))}
+          </div>
+          <div className="section-t">Ánh xạ CTE ↔ KDE (tích ô để gắn thành phần vào sự kiện)</div>
+          <div style={{ overflow: 'auto' }}>
+            <table><thead><tr><th>Sự kiện \ Thành phần</th>{selKdes.map(k => <th key={k} style={{ fontFamily: 'monospace' }}>{k}</th>)}</tr></thead>
+              <tbody>{selCtes.map(c => (
+                <tr key={c}><td style={{ fontFamily: 'monospace' }}>{c}</td>
+                  {selKdes.map(k => (
+                    <td key={k} style={{ textAlign: 'center' }}>
+                      <input type="checkbox" style={{ width: 'auto' }} checked={hasMap(c, k)} onChange={() => toggleMap(c, k)} />
+                      {hasMap(c, k) && <div style={{ fontSize: 11 }}>
+                        <label style={{ display: 'block' }}><input type="checkbox" style={{ width: 'auto' }} checked={maps.find(m => m.cteCode === c && m.kdeCode === k).flagKey} onChange={e => setMapFlag(c, k, 'flagKey', e.target.checked)} /> Key</label>
+                        <label style={{ display: 'block' }}><input type="checkbox" style={{ width: 'auto' }} checked={maps.find(m => m.cteCode === c && m.kdeCode === k).flagOsOrgView} onChange={e => setMapFlag(c, k, 'flagOsOrgView', e.target.checked)} /> Ngoài org</label></div>}
+                    </td>))}</tr>))}
+                {selCtes.length === 0 && <tr><td className="muted" style={{ padding: 12 }}>Chọn ít nhất 1 sự kiện và 1 thành phần.</td></tr>}</tbody></table>
+          </div>
+        </>
+      )}
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: mẫu phải có ít nhất 1 sự kiện và 1 thành phần; mẫu đã duyệt không thể sửa.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu mẫu</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -454,6 +564,7 @@ export default function App() {
         <Route path="ctes" element={<Ctes />} />
         <Route path="kdes" element={<Kdes />} />
         <Route path="glns" element={<Glns />} />
+        <Route path="templates" element={<Templates />} />
       </Route>
     </Routes>
   )

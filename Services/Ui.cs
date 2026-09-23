@@ -24,4 +24,12 @@ public static class Ui
         VerifyStatus.Suspect => ("Nghi hàng giả", "danger", "bi-shield-exclamation"),
         _ => (s.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) TplStatus(TplNwtStatus s) => s switch
+    {
+        TplNwtStatus.Pending => ("Chờ duyệt", "warning", "bi-hourglass-split"),
+        TplNwtStatus.Approve => ("Đã duyệt", "success", "bi-check2-circle"),
+        TplNwtStatus.Cancel => ("Đã hủy", "secondary", "bi-x-circle"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

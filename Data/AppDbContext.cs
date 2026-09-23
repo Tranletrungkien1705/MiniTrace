@@ -17,6 +17,10 @@ public class AppDbContext : DbContext
     public DbSet<Kde> Kdes => Set<Kde>();
     public DbSet<CteKde> CteKdes => Set<CteKde>();
     public DbSet<Gln> Glns => Set<Gln>();
+    public DbSet<TemplateNWType> Templates => Set<TemplateNWType>();
+    public DbSet<TplNwtCte> TplNwtCtes => Set<TplNwtCte>();
+    public DbSet<TplNwtKde> TplNwtKdes => Set<TplNwtKde>();
+    public DbSet<TplNwtCteKde> TplNwtCteKdes => Set<TplNwtCteKde>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -59,6 +63,29 @@ public class AppDbContext : DbContext
         b.Entity<Gln>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<TemplateNWType>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.TplNWType }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<TplNwtCte>(e =>
+        {
+            e.HasOne(x => x.Template).WithMany(x => x.Ctes).HasForeignKey(x => x.TemplateId);
+            e.HasIndex(x => new { x.OrgId, x.TemplateId, x.CteCode }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<TplNwtKde>(e =>
+        {
+            e.HasOne(x => x.Template).WithMany(x => x.Kdes).HasForeignKey(x => x.TemplateId);
+            e.HasIndex(x => new { x.OrgId, x.TemplateId, x.KdeCode }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<TplNwtCteKde>(e =>
+        {
+            e.HasOne(x => x.Template).WithMany(x => x.CteKdes).HasForeignKey(x => x.TemplateId);
+            e.HasIndex(x => new { x.OrgId, x.TemplateId, x.CteCode, x.KdeCode }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

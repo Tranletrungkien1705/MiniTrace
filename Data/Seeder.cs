@@ -106,13 +106,52 @@ public static class Seeder
                 new Gln { Code = "8930001000004", Name = "Siêu thị Co.opmart Q.1", GpsLat = "10.7756", GpsLong = "106.7019", Remark = "Điểm bán lẻ", Active = true });
             await db.SaveChangesAsync();
         }
+
+        // Mẫu loại tổ chức (GS1 Network Type Template) — "bộ khung" CTE + KDE + ánh xạ cho từng loại tổ chức.
+        if (!await db.Templates.AnyAsync())
+        {
+            var tplMfg = new TemplateNWType { TplNWType = "MANUFACTURER", Description = "Nhà sản xuất", Status = TplNwtStatus.Approve, Remark = "Mẫu chuẩn cho nhà sản xuất" };
+            db.Templates.Add(tplMfg); await db.SaveChangesAsync();
+            db.TplNwtCtes.AddRange(
+                new TplNwtCte { TemplateId = tplMfg.Id, CteCode = "PRODUCTION_IN", CteDesc = "Nhập kho thành phẩm (sản xuất)", Active = true },
+                new TplNwtCte { TemplateId = tplMfg.Id, CteCode = "QUALITY_CHECK", CteDesc = "Kiểm định chất lượng", Active = true },
+                new TplNwtCte { TemplateId = tplMfg.Id, CteCode = "PACKING", CteDesc = "Đóng gói", Active = true });
+            db.TplNwtKdes.AddRange(
+                new TplNwtKde { TemplateId = tplMfg.Id, KdeCode = "LOT_NO", KdeDesc = "Số lô sản xuất", DataType = "Text", Active = true },
+                new TplNwtKde { TemplateId = tplMfg.Id, KdeCode = "PROD_DATE", KdeDesc = "Ngày sản xuất", DataType = "Date", Active = true },
+                new TplNwtKde { TemplateId = tplMfg.Id, KdeCode = "SERIAL_NO", KdeDesc = "Số serial / mã định danh đơn vị", DataType = "Text", Active = true },
+                new TplNwtKde { TemplateId = tplMfg.Id, KdeCode = "QUALITY_RESULT", KdeDesc = "Kết quả kiểm định", DataType = "List", RefNoList = "Đạt;Không đạt;Chờ", FlagList = true, Active = true });
+            db.TplNwtCteKdes.AddRange(
+                new TplNwtCteKde { TemplateId = tplMfg.Id, CteCode = "PRODUCTION_IN", KdeCode = "LOT_NO", FlagKey = true },
+                new TplNwtCteKde { TemplateId = tplMfg.Id, CteCode = "PRODUCTION_IN", KdeCode = "PROD_DATE", FlagKey = true },
+                new TplNwtCteKde { TemplateId = tplMfg.Id, CteCode = "PRODUCTION_IN", KdeCode = "SERIAL_NO", FlagKey = true },
+                new TplNwtCteKde { TemplateId = tplMfg.Id, CteCode = "QUALITY_CHECK", KdeCode = "QUALITY_RESULT", FlagKey = true },
+                new TplNwtCteKde { TemplateId = tplMfg.Id, CteCode = "PACKING", KdeCode = "LOT_NO", FlagKey = true });
+            await db.SaveChangesAsync();
+
+            var tplDist = new TemplateNWType { TplNWType = "DISTRIBUTOR", Description = "Đại lý phân phối", Status = TplNwtStatus.Pending, Remark = "Mẫu cho đại lý cấp 1" };
+            db.Templates.Add(tplDist); await db.SaveChangesAsync();
+            db.TplNwtCtes.AddRange(
+                new TplNwtCte { TemplateId = tplDist.Id, CteCode = "SALE_TO_DISTRIBUTOR", CteDesc = "Xuất kho → Đại lý cấp 1", Active = true },
+                new TplNwtCte { TemplateId = tplDist.Id, CteCode = "DISTRIBUTOR_IN", CteDesc = "Đại lý nhận hàng", Active = true });
+            db.TplNwtKdes.AddRange(
+                new TplNwtKde { TemplateId = tplDist.Id, KdeCode = "FROM_LOCATION", KdeDesc = "Vị trí xuất phát", DataType = "Text", Active = true },
+                new TplNwtKde { TemplateId = tplDist.Id, KdeCode = "TO_LOCATION", KdeDesc = "Vị trí đích", DataType = "Text", Active = true },
+                new TplNwtKde { TemplateId = tplDist.Id, KdeCode = "CARRIER", KdeDesc = "Đơn vị vận chuyển", DataType = "Text", Active = true });
+            db.TplNwtCteKdes.AddRange(
+                new TplNwtCteKde { TemplateId = tplDist.Id, CteCode = "SALE_TO_DISTRIBUTOR", KdeCode = "FROM_LOCATION", FlagKey = true },
+                new TplNwtCteKde { TemplateId = tplDist.Id, CteCode = "SALE_TO_DISTRIBUTOR", KdeCode = "TO_LOCATION", FlagKey = true },
+                new TplNwtCteKde { TemplateId = tplDist.Id, CteCode = "SALE_TO_DISTRIBUTOR", KdeCode = "CARRIER", FlagKey = false },
+                new TplNwtCteKde { TemplateId = tplDist.Id, CteCode = "DISTRIBUTOR_IN", KdeCode = "TO_LOCATION", FlagKey = true });
+            await db.SaveChangesAsync();
+        }
     }
 
     private static async Task MigratePostgresAsync(AppDbContext db)
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",
