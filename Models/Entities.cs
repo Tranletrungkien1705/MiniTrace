@@ -615,6 +615,23 @@ public class Secret : IOrgOwned
 }
 
 /// <summary>
+/// Danh mục định mức số lượng trong hộp (Mst_QuantityInBox của InBrandCloud eTEM).
+/// "Từ điển" các mức số lượng đóng gói chuẩn (vd: Mười=10, Một trăm=100, Một nghìn=1000)
+/// dùng khi sinh tem/đóng hộp để chọn nhanh số lượng sản phẩm trong một hộp/thùng.
+/// QuantityCode là mã mức (duy nhất trong tenant), QuantityValue là giá trị số tương ứng.
+/// </summary>
+public class QuantityInBox : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string QuantityCode { get; set; } = "";   // QuantityCode — mã mức số lượng (duy nhất trong tenant)
+    public int QuantityValue { get; set; }            // QuantityValue — giá trị số lượng
+    public string? NetworkId { get; set; }            // NetworkID — môi trường/loại mạng áp dụng
+    public bool Active { get; set; } = true;          // FlagActive — đang hoạt động
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
+/// <summary>
 /// Ánh xạ cặp tem (GS1 Stamp Pair — Map_StampPair của InBrandCloud eTEM).
 /// Ghép 1 tem sản phẩm (IDNo) với 1 tem hộp (BoxNo) thành một "cặp tem" để đẩy lên
 /// máy chủ eTEM/ELTS (Index etem_tem). Mỗi IDNo và mỗi BoxNo chỉ được xuất hiện trong
