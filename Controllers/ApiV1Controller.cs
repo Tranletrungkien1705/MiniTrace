@@ -195,6 +195,25 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM) =====
+    [HttpGet("org-glns")]
+    public async Task<IActionResult> OrgGlns([FromQuery] string? q)
+        => Ok((await svc.OrgGlnsAsync(q)).Select(m => new { m.Id, m.OrgCode, m.GlnCode, m.GlnName, m.GpsLat, m.GpsLong, m.Remark, m.CreatedAt }));
+
+    [HttpPost("org-glns")]
+    public async Task<IActionResult> SaveOrgGln([FromBody] OrgGlnReq r)
+    {
+        var (ok, msg) = await svc.SaveOrgGlnAsync(r.Id, r.OrgCode ?? "", r.GlnCode ?? "", r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("org-glns/{id:int}")]
+    public async Task<IActionResult> DeleteOrgGln(int id)
+    {
+        var (ok, msg) = await svc.DeleteOrgGlnAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // ===== Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM) =====
     [HttpGet("templates")]
     public async Task<IActionResult> Templates([FromQuery] string? q)
@@ -332,6 +351,7 @@ public class CteKdeReq { public string? CteCode { get; set; } public List<CteKde
 public class CteKdeItemReq { public string? KdeCode { get; set; } public bool FlagKey { get; set; } public bool FlagOsOrgView { get; set; } }
 public class GlnReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? GpsLat { get; set; } public string? GpsLong { get; set; } public string? Remark { get; set; } public bool Active { get; set; } = true; }
 public class FarmReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? NetworkType { get; set; } public bool Active { get; set; } = true; }
+public class OrgGlnReq { public int Id { get; set; } public string? OrgCode { get; set; } public string? GlnCode { get; set; } public string? Remark { get; set; } }
 public class TemplateReq { public int Id { get; set; } public string? TplNWType { get; set; } public string? Description { get; set; } public string? Remark { get; set; } public List<TplCteItemReq>? Ctes { get; set; } public List<TplKdeItemReq>? Kdes { get; set; } public List<TplCteKdeItemReq>? CteKdes { get; set; } }
 public class TplCteItemReq { public string? CteCode { get; set; } public string? CteDesc { get; set; } public string? ApiLink { get; set; } public bool Active { get; set; } = true; }
 public class TplKdeItemReq { public string? KdeCode { get; set; } public string? KdeDesc { get; set; } public string? DataType { get; set; } public string? RefNoList { get; set; } public bool FlagList { get; set; } public bool FlagQuery { get; set; } public bool Active { get; set; } = true; }

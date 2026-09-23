@@ -39,6 +39,10 @@ public interface ITraceService
     Task<List<Farm>> FarmsAsync(string? q);
     Task<(bool ok, string msg)> SaveFarmAsync(int id, string code, string name, string? networkType, bool active);
     Task<(bool ok, string msg)> DeleteFarmAsync(int id);
+    // Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM)
+    Task<List<OrgGlnView>> OrgGlnsAsync(string? q);
+    Task<(bool ok, string msg)> SaveOrgGlnAsync(int id, string orgCode, string glnCode, string? remark);
+    Task<(bool ok, string msg)> DeleteOrgGlnAsync(int id);
     // Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM)
     Task<List<TemplateNWType>> TemplatesAsync(string? q);
     Task<TemplateNWType?> GetTemplateAsync(int id);
@@ -74,6 +78,9 @@ public record TplNwtCteKdeInput(string CteCode, string KdeCode, string? ApiLink,
 
 /// <summary>1 giá trị thành phần dữ liệu (KDE) khi ghi sự kiện truy xuất (1 dòng Event_EventSpec).</summary>
 public record RecordSpecInput(string KdeCode, string? KdeValue);
+
+/// <summary>1 dòng ánh xạ tổ chức↔địa điểm đã join sang GLN (tương đương Mst_OrgIDMapGLN + Mst_GLN).</summary>
+public record OrgGlnView(int Id, string OrgCode, string GlnCode, string? GlnName, string? GpsLat, string? GpsLong, string? Remark, DateTime CreatedAt);
 
 public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITraceService
 {
@@ -427,6 +434,63 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Farms.Remove(farm);
         await db.SaveChangesAsync();
         return (true, "Đã xóa nông trại.");
+    }
+
+    // ===== Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM) =====
+    // Gắn một tổ chức (OrgID) với một địa điểm (GLNCode); join sang GLN để lấy tên + toạ độ GPS.
+    public async Task<List<OrgGlnView>> OrgGlnsAsync(string? q)
+    {
+        var query = db.OrgGlns.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q)) query = query.Where(m => m.OrgCode.Contains(q) || m.GlnCode.Contains(q));
+        var list = await query.ToListAsync();
+        // Join sang danh mục GLN để làm giàu tên địa điểm + toạ độ (tương đương left join Mst_GLN).
+        var glns = await db.Glns.ToListAsync();
+        var byCode = glns.ToDictionary(g => g.Code, g => g);
+        return list.OrderBy(m => m.OrgCode).ThenBy(m => m.GlnCode)
+            .Select(m =>
+            {
+                byCode.TryGetValue(m.GlnCode, out var g);
+                return new OrgGlnView(m.Id, m.OrgCode, m.GlnCode, g?.Name, g?.GpsLat, g?.GpsLong, m.Remark, m.CreatedAt);
+            }).ToList();
+    }
+
+    // Lưu ánh xạ tổ chức↔địa điểm. Áp quy tắc InBrandCloud (Mst_OrgIDMapGLN):
+    //  (1) Cần mã tổ chức (OrgID) + mã địa điểm (GLNCode).
+    //  (2) Địa điểm (GLNCode) phải tồn tại trong danh mục GLN.
+    //  (3) Cặp (OrgID, GLNCode) duy nhất trong tenant — chống trùng ánh xạ.
+    public async Task<(bool ok, string msg)> SaveOrgGlnAsync(int id, string orgCode, string glnCode, string? remark)
+    {
+        orgCode = (orgCode ?? "").Trim();
+        glnCode = (glnCode ?? "").Trim();
+        if (orgCode.Length == 0) return (false, "Cần mã tổ chức (OrgID).");
+        if (glnCode.Length == 0) return (false, "Cần mã địa điểm (GLNCode).");
+        // (2) Địa điểm phải tồn tại trong danh mục GLN.
+        if (!await db.Glns.AnyAsync(g => g.Code == glnCode)) return (false, $"Địa điểm '{glnCode}' không tồn tại trong danh mục GLN.");
+        // (3) Cặp (OrgID, GLNCode) duy nhất trong tenant.
+        if (await db.OrgGlns.AnyAsync(m => m.OrgCode == orgCode && m.GlnCode == glnCode && m.Id != id))
+            return (false, $"Tổ chức '{orgCode}' đã được gắn với địa điểm '{glnCode}'.");
+
+        OrgGln map;
+        if (id > 0)
+        {
+            map = await db.OrgGlns.FirstOrDefaultAsync(m => m.Id == id) ?? null!;
+            if (map == null) return (false, "Không tìm thấy ánh xạ.");
+        }
+        else { map = new OrgGln(); db.OrgGlns.Add(map); }
+
+        map.OrgCode = orgCode; map.GlnCode = glnCode;
+        map.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật ánh xạ." : "Đã thêm ánh xạ.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteOrgGlnAsync(int id)
+    {
+        var map = await db.OrgGlns.FirstOrDefaultAsync(m => m.Id == id);
+        if (map == null) return (false, "Không tìm thấy ánh xạ.");
+        db.OrgGlns.Remove(map);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa ánh xạ.");
     }
 
     // ===== Mẫu loại tổ chức (GS1 Network Type Template — Mst_TemplateNWType của InBrandCloud eTEM) =====

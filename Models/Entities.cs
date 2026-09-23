@@ -137,6 +137,22 @@ public class Gln : IOrgOwned
 }
 
 /// <summary>
+/// Ánh xạ Tổ chức ↔ Địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM).
+/// Gắn một tổ chức (OrgID) với một địa điểm (GLNCode) trong chuỗi cung ứng —
+/// cho biết tổ chức đó hoạt động tại những địa điểm nào. Khi truy vấn, hệ thống
+/// join sang Mst_GLN để lấy tên địa điểm + toạ độ GPS (mg_GLNName/mg_GPSLat/mg_GPSLong).
+/// </summary>
+public class OrgGln : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string OrgCode { get; set; } = "";      // OrgID — mã tổ chức (duy nhất trong tenant)
+    public string GlnCode { get; set; } = "";      // GLNCode — mã địa điểm (tham chiếu Mst_GLN)
+    public string? Remark { get; set; }             // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
+
+/// <summary>
 /// Danh mục Nông trại / Trang trại (GS1 Farm — Mst_Farm của InBrandCloud eTEM).
 /// Tương đương bảng Mst_Farm: định danh "từ điển" các nông trại/vùng trồng
 /// trong chuỗi truy xuất nguồn gốc (nơi sản phẩm được nuôi trồng/thu hoạch),

@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<Kde> Kdes => Set<Kde>();
     public DbSet<CteKde> CteKdes => Set<CteKde>();
     public DbSet<Gln> Glns => Set<Gln>();
+    public DbSet<OrgGln> OrgGlns => Set<OrgGln>();
     public DbSet<Farm> Farms => Set<Farm>();
     public DbSet<TemplateNWType> Templates => Set<TemplateNWType>();
     public DbSet<TplNwtCte> TplNwtCtes => Set<TplNwtCte>();
@@ -72,6 +73,11 @@ public class AppDbContext : DbContext
         b.Entity<Farm>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.Code }).IsUnique();
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<OrgGln>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.OrgCode, x.GlnCode }).IsUnique();
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
         b.Entity<TemplateNWType>(e =>

@@ -117,6 +117,17 @@ public static class Seeder
             await db.SaveChangesAsync();
         }
 
+        // Ánh xạ tổ chức ↔ địa điểm (Mst_OrgIDMapGLN của InBrandCloud eTEM) — tổ chức hoạt động tại địa điểm nào.
+        if (!await db.OrgGlns.AnyAsync())
+        {
+            db.OrgGlns.AddRange(
+                new OrgGln { OrgCode = "MST-NXSX-ST", GlnCode = "8930001000001", Remark = "Nhà máy sản xuất chính" },
+                new OrgGln { OrgCode = "MST-NXSX-ST", GlnCode = "8930001000002", Remark = "Kho thành phẩm" },
+                new OrgGln { OrgCode = "MST-DL-HCM", GlnCode = "8930001000003", Remark = "Đại lý phân phối cấp 1" },
+                new OrgGln { OrgCode = "MST-BANLE-COOP", GlnCode = "8930001000004", Remark = "Điểm bán lẻ" });
+            await db.SaveChangesAsync();
+        }
+
         // Mẫu loại tổ chức (GS1 Network Type Template) — "bộ khung" CTE + KDE + ánh xạ cho từng loại tổ chức.
         if (!await db.Templates.AnyAsync())
         {
@@ -200,7 +211,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "CteKdes", "Glns", "OrgGlns", "Farms", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

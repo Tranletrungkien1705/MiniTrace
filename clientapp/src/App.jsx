@@ -25,6 +25,7 @@ function Layout() {
         <NavLink to="/verify">Chống hàng giả</NavLink><NavLink to="/ctes">Sự kiện (CTE)</NavLink>
         <NavLink to="/kdes">Thành phần (KDE)</NavLink><NavLink to="/glns">Địa điểm (GLN)</NavLink>
         <NavLink to="/farms">Nông trại</NavLink>
+        <NavLink to="/org-glns">Tổ chức ↔ Địa điểm</NavLink>
         <NavLink to="/templates">Mẫu loại tổ chức</NavLink>
         <NavLink to="/tpl-view-events">Mẫu hiển thị</NavLink>
         <NavLink to="/records">Sự kiện truy xuất</NavLink></nav>
@@ -500,6 +501,60 @@ function FarmForm({ farm, onClose, onSaved }) {
   )
 }
 
+function OrgGlns() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.orgGlns(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (m) => {
+    if (!window.confirm(`Xóa ánh xạ ${m.orgCode} ↔ ${m.glnCode}?`)) return
+    try { const r = await api.deleteOrgGln(m.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Tổ chức ↔ Địa điểm</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã tổ chức / GLN…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, orgCode: '', glnCode: '', remark: '' })}>+ Thêm ánh xạ</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Ánh xạ tổ chức ↔ địa điểm (GS1 Mst_OrgIDMapGLN) — gắn một tổ chức (OrgID) với một địa điểm (GLN) trong chuỗi cung ứng, cho biết tổ chức đó hoạt động tại những địa điểm nào. Tên địa điểm + toạ độ GPS được join từ danh mục GLN.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã tổ chức (OrgID)</th><th>Mã địa điểm (GLNCode)</th><th>Tên địa điểm</th><th>Vĩ độ</th><th>Kinh độ</th><th>Ghi chú</th><th></th></tr></thead>
+          <tbody>{rows.map(m => (
+            <tr key={m.id}><td style={{ fontFamily: 'monospace' }}>{m.orgCode}</td><td style={{ fontFamily: 'monospace' }}>{m.glnCode}</td>
+              <td>{m.glnName || '—'}</td><td className="muted">{m.gpsLat || '—'}</td><td className="muted">{m.gpsLong || '—'}</td><td className="muted">{m.remark || '—'}</td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(m)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(m)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có ánh xạ.</td></tr>}</tbody></table>
+      </div>
+      {edit && <OrgGlnForm map={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function OrgGlnForm({ map, onClose, onSaved }) {
+  const [glns, setGlns] = useState([])
+  const [f, setF] = useState({ id: map.id, orgCode: map.orgCode || '', glnCode: map.glnCode || '', remark: map.remark || '' }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  useEffect(() => { api.glns().then(r => setGlns(r.data)) }, [])
+  const save = async () => {
+    try { await api.saveOrgGln({ id: f.id, orgCode: f.orgCode, glnCode: f.glnCode, remark: f.remark }); onSaved() }
+    catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa ánh xạ ${f.orgCode} ↔ ${f.glnCode}` : 'Thêm ánh xạ tổ chức ↔ địa điểm'} onClose={onClose}>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã tổ chức (OrgID) *"><input value={f.orgCode} onChange={e => up('orgCode', e.target.value)} placeholder="vd: MST-NXSX-ST" /></Field>
+        <Field label="Địa điểm (GLNCode) *"><select value={f.glnCode} onChange={e => up('glnCode', e.target.value)}>
+          <option value="">—</option>{glns.map(g => <option key={g.id} value={g.code}>{g.code} · {g.name}</option>)}</select></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: địa điểm phải tồn tại trong danh mục GLN; mỗi cặp (tổ chức, địa điểm) chỉ được gắn một lần.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>Lưu ánh xạ</button></div>
+    </Modal>
+  )
+}
+
 function Templates() {
   const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
   const load = () => api.templates(q).then(r => setRows(r.data))
@@ -761,6 +816,7 @@ export default function App() {
         <Route path="kdes" element={<Kdes />} />
         <Route path="glns" element={<Glns />} />
         <Route path="farms" element={<Farms />} />
+        <Route path="org-glns" element={<OrgGlns />} />
         <Route path="templates" element={<Templates />} />
         <Route path="tpl-view-events" element={<TplViewEvents />} />
         <Route path="records" element={<Records />} />
