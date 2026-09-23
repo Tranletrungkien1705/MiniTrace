@@ -761,3 +761,50 @@ public class ConfigColumnSearch : IOrgOwned
     public string? EltsObjectId { get; set; }         // ELTSObjectId — mã ElasticSearch
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Trạng thái ghi nhận sản phẩm đã sản xuất (FlagCompleted của Inv_InventoryManufacturedID).
+/// InProgress = đang sản xuất (đã gắn tem vào dây chuyền), Completed = đã hoàn tất dãy sản xuất.
+/// </summary>
+public enum ManufacturedStatus
+{
+    InProgress = 0,   // Đang sản xuất
+    Completed = 1     // Đã hoàn tất
+}
+
+/// <summary>
+/// Sản phẩm đã sản xuất / Dãy sản xuất (GS1 Manufactured ID — Inv_InventoryManufacturedID của InBrandCloud eTEM).
+/// Mỗi dòng = 1 tem sản phẩm (IDNo) được ghi nhận đã sản xuất trên một dây chuyền (LineCode) theo ca
+/// (ShiftCode) và lô sản xuất (ProductionLotNo). Đây là mắt xích "sản xuất" trong chuỗi truy xuất:
+/// nối tem số (kho số tem) với dây chuyền/ca/lô thực tế. IManufacturedIDNo là mã dãy sản xuất (nhóm tem
+/// cùng một lần chạy máy). Áp quy tắc InBrandCloud (Inv_InventoryManufacturedID_AddMultiX):
+///  (1) IDNo phải tồn tại trong kho số tem (Inv_InventoryGenID);
+///  (2) IDNo chưa được ghi nhận trong dãy sản xuất nào (chống trùng);
+///  (3) IDNo không thuộc bảng tem rách vỡ khu sản xuất;
+///  (4) không trùng IDNo trong cùng một lần nhập.
+/// </summary>
+public class ManufacturedId : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string IDNo { get; set; } = "";              // IDNo — mã tem sản phẩm (tham chiếu kho số tem)
+    public string IManufacturedIDNo { get; set; } = ""; // IManufacturedIDNo — mã dãy sản xuất (nhóm tem cùng lần chạy máy)
+    public string? NetworkId { get; set; }              // NetworkID — môi trường/loại mạng áp dụng
+    public string? BoxNo { get; set; }                  // BoxNo — mã hộp (nếu tem đã đóng hộp)
+    public string? LineCode { get; set; }               // LineCode — mã dây chuyền sản xuất
+    public string? LineRootCode { get; set; }           // LineRootCode — mã dây chuyền gốc (dây chuyền cha)
+    public string? ShiftCode { get; set; }              // ShiftCode — ca sản xuất
+    public string? ProductionLotNo { get; set; }        // ProductionLotNo — mã lô sản xuất
+    public string? RefNoLine { get; set; }              // RefNoLine — mã đối chiếu dãy
+    public string? ProductCode { get; set; }            // ProductCode — mã loại sản phẩm
+    public string? InvCode { get; set; }                // InvCode — mã kho
+    public DateTime? ManufactureStartDTime { get; set; }// ManufactureStartDTime — thời điểm bắt đầu sản xuất
+    public DateTime? MobileScanDTime { get; set; }      // MobileScanDTime — thời điểm quét tem (theo máy quét)
+    public int MobileIndex { get; set; }                // MobileIndex — số thứ tự theo máy quét
+    public bool FlagMap { get; set; }                   // FlagMap — đã ghép thông tin sản phẩm chưa
+    public ManufacturedStatus Status { get; set; } = ManufacturedStatus.InProgress;  // FlagCompleted
+    public DateTime? CompleteDTime { get; set; }        // CompleteDTimeUTC — thời điểm hoàn tất dãy
+    public string? CompleteBy { get; set; }             // CompleteBy — người hoàn tất
+    public string? Remark { get; set; }                 // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}

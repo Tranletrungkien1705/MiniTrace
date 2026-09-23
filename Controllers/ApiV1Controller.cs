@@ -687,6 +687,33 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Sản phẩm đã sản xuất / Dãy sản xuất (Inv_InventoryManufacturedID của InBrandCloud eTEM) =====
+    [HttpGet("manufactured-ids")]
+    public async Task<IActionResult> ManufacturedIds([FromQuery] string? q)
+        => Ok((await svc.ManufacturedIdsAsync(q)).Select(m => new
+        {
+            m.Id, m.IDNo, m.IManufacturedIDNo, m.NetworkId, m.BoxNo, m.LineCode, m.LineRootCode, m.ShiftCode,
+            m.ProductionLotNo, m.RefNoLine, m.ProductCode, m.InvCode, m.ManufactureStartDTime, m.MobileScanDTime,
+            m.MobileIndex, m.FlagMap, status = (int)m.Status, statusText = Ui.Manufactured(m.Status).text, css = Ui.Manufactured(m.Status).css,
+            m.CompleteDTime, m.CompleteBy, m.Remark, m.CreatedAt
+        }));
+
+    [HttpPost("manufactured-ids")]
+    public async Task<IActionResult> SaveManufacturedId([FromBody] ManufacturedIdReq r)
+    {
+        var (ok, msg) = await svc.SaveManufacturedIdAsync(r.Id, r.IDNo ?? "", r.IManufacturedIDNo ?? "", r.NetworkId, r.BoxNo,
+            r.LineCode, r.LineRootCode, r.ShiftCode, r.ProductionLotNo, r.RefNoLine, r.ProductCode, r.InvCode,
+            r.ManufactureStartDTime, r.MobileScanDTime, r.MobileIndex, r.FlagMap, (ManufacturedStatus)r.Status, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("manufactured-ids/{id:int}")]
+    public async Task<IActionResult> DeleteManufacturedId(int id)
+    {
+        var (ok, msg) = await svc.DeleteManufacturedIdAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -780,4 +807,26 @@ public class ConfigColumnSearchReq
     public bool FlagShow { get; set; } = true;
     public string? EsColumnId { get; set; }
     public string? EltsObjectId { get; set; }
+}
+
+public class ManufacturedIdReq
+{
+    public int Id { get; set; }
+    public string? IDNo { get; set; }
+    public string? IManufacturedIDNo { get; set; }
+    public string? NetworkId { get; set; }
+    public string? BoxNo { get; set; }
+    public string? LineCode { get; set; }
+    public string? LineRootCode { get; set; }
+    public string? ShiftCode { get; set; }
+    public string? ProductionLotNo { get; set; }
+    public string? RefNoLine { get; set; }
+    public string? ProductCode { get; set; }
+    public string? InvCode { get; set; }
+    public DateTime? ManufactureStartDTime { get; set; }
+    public DateTime? MobileScanDTime { get; set; }
+    public int MobileIndex { get; set; }
+    public bool FlagMap { get; set; }
+    public int Status { get; set; }
+    public string? Remark { get; set; }
 }

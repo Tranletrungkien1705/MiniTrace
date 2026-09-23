@@ -70,4 +70,11 @@ public static class Ui
         ProductIdStatus.Checking => ("Đang kiểm tra", "info", "bi-search"),
         _ => (s.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) Manufactured(ManufacturedStatus s) => s switch
+    {
+        ManufacturedStatus.InProgress => ("Đang sản xuất", "warning", "bi-gear-wide-connected"),
+        ManufacturedStatus.Completed => ("Đã hoàn tất", "success", "bi-check2-circle"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

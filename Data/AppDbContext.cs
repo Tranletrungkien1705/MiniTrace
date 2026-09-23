@@ -41,6 +41,7 @@ public class AppDbContext : DbContext
     public DbSet<StampPair> StampPairs => Set<StampPair>();
     public DbSet<ProductId> ProductIds => Set<ProductId>();
     public DbSet<ConfigColumnSearch> ConfigColumnSearches => Set<ConfigColumnSearch>();
+    public DbSet<ManufacturedId> ManufacturedIds => Set<ManufacturedId>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -211,6 +212,11 @@ public class AppDbContext : DbContext
         b.Entity<ConfigColumnSearch>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.CoumnID, x.NetworkId, x.TypeId }).IsUnique();   // bộ ba duy nhất trong tenant
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<ManufacturedId>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.IDNo }).IsUnique();   // mỗi tem chỉ được ghi nhận sản xuất 1 lần
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

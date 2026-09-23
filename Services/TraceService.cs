@@ -117,6 +117,10 @@ public interface ITraceService
     Task<List<ConfigColumnSearch>> ConfigColumnSearchesAsync(string? q);
     Task<(bool ok, string msg)> SaveConfigColumnSearchAsync(int id, string coumnID, string tabID, string? tabName, string? networkId, string typeId, int idxInTab, string? columnDesc, bool flagView, bool flagOsOrgView, bool flagShow, string? esColumnId, string? eltsObjectId);
     Task<(bool ok, string msg)> DeleteConfigColumnSearchAsync(int id);
+    // Sản phẩm đã sản xuất / Dãy sản xuất (Inv_InventoryManufacturedID của InBrandCloud eTEM)
+    Task<List<ManufacturedId>> ManufacturedIdsAsync(string? q);
+    Task<(bool ok, string msg)> SaveManufacturedIdAsync(int id, string idNo, string iManufacturedIDNo, string? networkId, string? boxNo, string? lineCode, string? lineRootCode, string? shiftCode, string? productionLotNo, string? refNoLine, string? productCode, string? invCode, DateTime? manufactureStartDTime, DateTime? mobileScanDTime, int mobileIndex, bool flagMap, ManufacturedStatus status, string? remark);
+    Task<(bool ok, string msg)> DeleteManufacturedIdAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1669,5 +1673,73 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.ConfigColumnSearches.Remove(cfg);
         await db.SaveChangesAsync();
         return (true, "Đã xóa cấu hình trường.");
+    }
+
+    // ===== Sản phẩm đã sản xuất / Dãy sản xuất (Inv_InventoryManufacturedID của InBrandCloud eTEM) =====
+    // Ghi nhận tem sản phẩm (IDNo) đã sản xuất trên dây chuyền/ca/lô — mắt xích "sản xuất" của chuỗi truy xuất.
+    public async Task<List<ManufacturedId>> ManufacturedIdsAsync(string? q)
+    {
+        var query = db.ManufacturedIds.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(m => m.IDNo.Contains(q) || m.IManufacturedIDNo.Contains(q)
+                || (m.ProductionLotNo != null && m.ProductionLotNo.Contains(q))
+                || (m.LineCode != null && m.LineCode.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(m => m.CreatedAt).Take(500).ToList();
+    }
+
+    // Lưu bản ghi sản xuất. Áp quy tắc InBrandCloud (Inv_InventoryManufacturedID_AddMultiX):
+    //  (1) Cần mã tem (IDNo) + mã dãy sản xuất (IManufacturedIDNo).
+    //  (2) IDNo phải tồn tại trong kho số tem (Inv_InventoryGenID).
+    //  (3) IDNo chưa được ghi nhận trong dãy sản xuất nào — chống trùng (mỗi tem chỉ sản xuất 1 lần).
+    public async Task<(bool ok, string msg)> SaveManufacturedIdAsync(int id, string idNo, string iManufacturedIDNo, string? networkId, string? boxNo, string? lineCode, string? lineRootCode, string? shiftCode, string? productionLotNo, string? refNoLine, string? productCode, string? invCode, DateTime? manufactureStartDTime, DateTime? mobileScanDTime, int mobileIndex, bool flagMap, ManufacturedStatus status, string? remark)
+    {
+        idNo = (idNo ?? "").Trim();
+        iManufacturedIDNo = (iManufacturedIDNo ?? "").Trim();
+        if (idNo.Length == 0) return (false, "Cần mã tem (IDNo).");
+        if (iManufacturedIDNo.Length == 0) return (false, "Cần mã dãy sản xuất (IManufacturedIDNo).");
+        // (2) IDNo phải tồn tại trong kho số tem.
+        if (!await db.Stamps.AnyAsync(s => s.IDNo == idNo))
+            return (false, $"Tem '{idNo}' không tồn tại trong kho số tem.");
+        // (3) IDNo chưa được ghi nhận trong dãy sản xuất nào — chống trùng.
+        if (await db.ManufacturedIds.AnyAsync(m => m.IDNo == idNo && m.Id != id))
+            return (false, $"Tem '{idNo}' đã được ghi nhận trong dãy sản xuất — không thể ghi lại.");
+
+        ManufacturedId m;
+        if (id > 0)
+        {
+            m = await db.ManufacturedIds.FirstOrDefaultAsync(x => x.Id == id) ?? null!;
+            if (m == null) return (false, "Không tìm thấy bản ghi sản xuất.");
+        }
+        else { m = new ManufacturedId(); db.ManufacturedIds.Add(m); }
+
+        m.IDNo = idNo; m.IManufacturedIDNo = iManufacturedIDNo;
+        m.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        m.BoxNo = string.IsNullOrWhiteSpace(boxNo) ? null : boxNo.Trim();
+        m.LineCode = string.IsNullOrWhiteSpace(lineCode) ? null : lineCode.Trim();
+        m.LineRootCode = string.IsNullOrWhiteSpace(lineRootCode) ? null : lineRootCode.Trim();
+        m.ShiftCode = string.IsNullOrWhiteSpace(shiftCode) ? null : shiftCode.Trim();
+        m.ProductionLotNo = string.IsNullOrWhiteSpace(productionLotNo) ? null : productionLotNo.Trim();
+        m.RefNoLine = string.IsNullOrWhiteSpace(refNoLine) ? null : refNoLine.Trim();
+        m.ProductCode = string.IsNullOrWhiteSpace(productCode) ? null : productCode.Trim();
+        m.InvCode = string.IsNullOrWhiteSpace(invCode) ? null : invCode.Trim();
+        m.ManufactureStartDTime = manufactureStartDTime;
+        m.MobileScanDTime = mobileScanDTime;
+        m.MobileIndex = mobileIndex;
+        m.FlagMap = flagMap;
+        m.Status = status;
+        m.CompleteDTime = status == ManufacturedStatus.Completed ? (m.CompleteDTime ?? DateTime.Now) : null;
+        m.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật bản ghi sản xuất." : "Đã ghi nhận sản phẩm đã sản xuất.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteManufacturedIdAsync(int id)
+    {
+        var m = await db.ManufacturedIds.FirstOrDefaultAsync(x => x.Id == id);
+        if (m == null) return (false, "Không tìm thấy bản ghi sản xuất.");
+        db.ManufacturedIds.Remove(m);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa bản ghi sản xuất.");
     }
 }

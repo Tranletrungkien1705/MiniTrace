@@ -383,6 +383,27 @@ public static class Seeder
                 new ConfigColumnSearch { CoumnID = "DriverName", TabID = "TAB_DISTRIBUTION", TabName = "Lịch sử phân phối", NetworkId = "Distributor", TypeId = "InvF_InventoryHistInOutID", IdxInTab = 3, ColumnDesc = "Tài xế vận chuyển", FlagView = true, FlagOsOrgView = false, FlagShow = false, EsColumnId = "driverName" });
             await db.SaveChangesAsync();
         }
+
+        // Sản phẩm đã sản xuất / Dãy sản xuất (Inv_InventoryManufacturedID của InBrandCloud eTEM) — ghi nhận tem đã sản xuất.
+        if (!await db.ManufacturedIds.AnyAsync())
+        {
+            db.ManufacturedIds.AddRange(
+                new ManufacturedId { IDNo = "P000001", IManufacturedIDNo = "MFG2601010001", NetworkId = "Manufacturer", BoxNo = "B2601010001",
+                    LineCode = "LINE-A1", LineRootCode = "LINE-A", ShiftCode = "CA1", ProductionLotNo = "L2026-001", RefNoLine = "REF-A1-001",
+                    ProductCode = "8930001001", InvCode = "KHO-FG-ST", ManufactureStartDTime = DateTime.Now.AddDays(-20), MobileScanDTime = DateTime.Now.AddDays(-20),
+                    MobileIndex = 1, FlagMap = true, Status = ManufacturedStatus.Completed, CompleteDTime = DateTime.Now.AddDays(-20), CompleteBy = "Nguyễn Văn KCS",
+                    Remark = "Tem P000001 sản xuất trên dây chuyền A1 ca 1" },
+                new ManufacturedId { IDNo = "P000002", IManufacturedIDNo = "MFG2601010001", NetworkId = "Manufacturer", BoxNo = "B2601010001",
+                    LineCode = "LINE-A1", LineRootCode = "LINE-A", ShiftCode = "CA1", ProductionLotNo = "L2026-001", RefNoLine = "REF-A1-002",
+                    ProductCode = "8930001001", InvCode = "KHO-FG-ST", ManufactureStartDTime = DateTime.Now.AddDays(-20), MobileScanDTime = DateTime.Now.AddDays(-20),
+                    MobileIndex = 2, FlagMap = true, Status = ManufacturedStatus.Completed, CompleteDTime = DateTime.Now.AddDays(-20), CompleteBy = "Nguyễn Văn KCS",
+                    Remark = "Tem P000002 sản xuất trên dây chuyền A1 ca 1" },
+                new ManufacturedId { IDNo = "P000003", IManufacturedIDNo = "MFG2601010002", NetworkId = "Manufacturer", BoxNo = "B2601010001",
+                    LineCode = "LINE-A2", LineRootCode = "LINE-A", ShiftCode = "CA2", ProductionLotNo = "L2026-001", RefNoLine = "REF-A2-001",
+                    ProductCode = "8930001001", InvCode = "KHO-FG-ST", ManufactureStartDTime = DateTime.Now.AddDays(-19), MobileScanDTime = DateTime.Now.AddDays(-19),
+                    MobileIndex = 1, FlagMap = true, Status = ManufacturedStatus.InProgress, Remark = "Tem P000003 đang sản xuất trên dây chuyền A2 ca 2" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -396,7 +417,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",
