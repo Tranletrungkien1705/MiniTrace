@@ -45,6 +45,7 @@ public class AppDbContext : DbContext
     public DbSet<NetworkMaster> NetworkMasters => Set<NetworkMaster>();
     public DbSet<DistributionHistory> DistributionHistories => Set<DistributionHistory>();
     public DbSet<Dealer> Dealers => Set<Dealer>();
+    public DbSet<ManufactureLine> ManufactureLines => Set<ManufactureLine>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -236,6 +237,11 @@ public class AppDbContext : DbContext
         b.Entity<Dealer>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.DLCode }).IsUnique();   // mã đại lý duy nhất trong tenant
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<ManufactureLine>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.LineCode }).IsUnique();   // mã dây chuyền duy nhất trong tenant
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

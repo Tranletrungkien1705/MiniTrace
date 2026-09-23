@@ -925,3 +925,27 @@ public class Dealer : IOrgOwned
     public string? Remark { get; set; }                 // Remark — ghi chú
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Danh mục Dây chuyền sản xuất (GS1 Manufacture Line — Mst_ManufactureLine của InBrandCloud).
+/// "Từ điển" các dây chuyền/máy sản xuất trong nhà máy: mỗi dòng gắn một mã dây chuyền
+/// (LineCode) với tên, dây chuyền gốc (LineRootCode), vị trí (LinePositionValue) và cờ
+/// dây chuyền gốc (FlagRoot). Đây là mắt xích "sản xuất" của chuỗi truy xuất: khi ghi nhận
+/// sản phẩm đã sản xuất (Inv_InventoryManufacturedID), mã dây chuyền phải tồn tại và đang
+/// hoạt động (tương đương Mst_ManufactureLine_CheckDB + quy tắc
+/// Inv_InventoryManufacturedID_AddMultiX_LineCodeNotExistOrInActive của InBrandCloud).
+/// </summary>
+public class ManufactureLine : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string LineCode { get; set; } = "";         // LineCode — mã dây chuyền (duy nhất trong tenant)
+    public string? NetworkId { get; set; }              // NetworkID — môi trường/loại mạng áp dụng
+    public string? LineRootCode { get; set; }           // LineRootCode — mã dây chuyền gốc (dây chuyền cha)
+    public string LineName { get; set; } = "";         // LineName — tên dây chuyền
+    public string? LinePositionValue { get; set; }      // LinePositionValue — giá trị vị trí dây chuyền
+    public bool FlagRoot { get; set; }                  // FlagRoot — 1: dây chuyền gốc
+    public bool Active { get; set; } = true;            // FlagActive — đang hoạt động
+    public string? LastCompletedID { get; set; }        // LastCompletedID — IDNo hoàn tất gần nhất trên dây chuyền
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}

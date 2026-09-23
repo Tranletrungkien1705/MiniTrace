@@ -43,7 +43,8 @@ function Layout() {
         <NavLink to="/manufactured-ids">Dãy sản xuất</NavLink>
         <NavLink to="/network-masters">Mạng lưới</NavLink>
         <NavLink to="/distribution-histories">Lịch sử phân phối</NavLink>
-        <NavLink to="/dealers">Đại lý</NavLink></nav>
+        <NavLink to="/dealers">Đại lý</NavLink>
+        <NavLink to="/manufacture-lines">Dây chuyền SX</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1942,6 +1943,65 @@ function Dealers() {
   )
 }
 
+function ManufactureLines() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.manufactureLines(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (l) => {
+    if (!window.confirm(`Xóa dây chuyền ${l.lineCode}?`)) return
+    try { const r = await api.deleteManufactureLine(l.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Dây chuyền sản xuất</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / tên dây chuyền…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, lineCode: '', lineName: '', networkId: '', lineRootCode: '', linePositionValue: '', flagRoot: false, active: true, lastCompletedID: '' })}>+ Thêm dây chuyền</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục dây chuyền sản xuất (GS1 Manufacture Line — Mst_ManufactureLine) — "từ điển" các dây chuyền/máy sản xuất trong nhà máy, mắt xích "sản xuất" của chuỗi truy xuất. Khi ghi nhận sản phẩm đã sản xuất (Dãy sản xuất), mã dây chuyền phải tồn tại và đang hoạt động.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (LineCode)</th><th>Tên dây chuyền</th><th>Dây chuyền gốc</th><th>Vị trí</th><th>Gốc</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(l => (
+            <tr key={l.id}><td style={{ fontFamily: 'monospace' }}>{l.lineCode}</td><td>{l.lineName}</td>
+              <td className="muted">{l.lineRootCode || '—'}</td><td className="muted">{l.linePositionValue || '—'}</td>
+              <td>{l.flagRoot ? <Badge text="Gốc" css="success" /> : '—'}</td>
+              <td><Badge text={l.active ? 'Đang dùng' : 'Ngưng'} css={l.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(l)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(l)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={7} className="muted" style={{ padding: 20 }}>Chưa có dây chuyền.</td></tr>}</tbody></table>
+      </div>
+      {edit && <ManufactureLineForm line={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function ManufactureLineForm({ line, onClose, onSaved }) {
+  const [f, setF] = useState({ ...line }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveManufactureLine({ ...f }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa dây chuyền ${f.lineCode}` : 'Thêm dây chuyền'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã dây chuyền (LineCode) *"><input value={f.lineCode} onChange={e => up('lineCode', e.target.value)} placeholder="vd: LINE-01" /></Field>
+        <Field label="Tên dây chuyền (LineName) *"><input value={f.lineName} onChange={e => up('lineName', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Dây chuyền gốc (LineRootCode)"><input value={f.lineRootCode || ''} onChange={e => up('lineRootCode', e.target.value)} /></Field>
+        <Field label="Loại mạng (NetworkID)"><input value={f.networkId || ''} onChange={e => up('networkId', e.target.value)} placeholder="vd: Manufacturer" /></Field></div>
+      <div className="row"><Field label="Vị trí (LinePositionValue)"><input value={f.linePositionValue || ''} onChange={e => up('linePositionValue', e.target.value)} placeholder="vd: 1" /></Field>
+        <Field label="IDNo hoàn tất gần nhất (LastCompletedID)"><input value={f.lastCompletedID || ''} onChange={e => up('lastCompletedID', e.target.value)} /></Field></div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.flagRoot} onChange={e => up('flagRoot', e.target.checked)} /> Là dây chuyền gốc (FlagRoot)</label>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang hoạt động</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã + tên dây chuyền; mã dây chuyền duy nhất trong hệ thống.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 function DealerForm({ dealer, onClose, onSaved }) {
   const [f, setF] = useState({ ...dealer }); const [err, setErr] = useState('')
   const up = (k, v) => setF({ ...f, [k]: v })
@@ -2006,6 +2066,7 @@ export default function App() {
         <Route path="network-masters" element={<NetworkMasters />} />
         <Route path="distribution-histories" element={<DistributionHistories />} />
         <Route path="dealers" element={<Dealers />} />
+        <Route path="manufacture-lines" element={<ManufactureLines />} />
       </Route>
     </Routes>
   )

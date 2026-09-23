@@ -790,6 +790,30 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục dây chuyền sản xuất (GS1 Manufacture Line — Mst_ManufactureLine của InBrandCloud) =====
+    [HttpGet("manufacture-lines")]
+    public async Task<IActionResult> ManufactureLines([FromQuery] string? q)
+        => Ok((await svc.ManufactureLinesAsync(q)).Select(l => new
+        {
+            l.Id, l.LineCode, l.LineName, l.NetworkId, l.LineRootCode, l.LinePositionValue,
+            l.FlagRoot, l.Active, l.LastCompletedID, l.CreatedAt
+        }));
+
+    [HttpPost("manufacture-lines")]
+    public async Task<IActionResult> SaveManufactureLine([FromBody] ManufactureLineReq r)
+    {
+        var (ok, msg) = await svc.SaveManufactureLineAsync(r.Id, r.LineCode ?? "", r.LineName ?? "", r.NetworkId,
+            r.LineRootCode, r.LinePositionValue, r.FlagRoot, r.Active, r.LastCompletedID);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("manufacture-lines/{id:int}")]
+    public async Task<IActionResult> DeleteManufactureLine(int id)
+    {
+        var (ok, msg) = await svc.DeleteManufactureLineAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -968,4 +992,17 @@ public class DealerReq
     public string? DLPhoneNo { get; set; }
     public bool Active { get; set; } = true;
     public string? Remark { get; set; }
+}
+
+public class ManufactureLineReq
+{
+    public int Id { get; set; }
+    public string? LineCode { get; set; }
+    public string? LineName { get; set; }
+    public string? NetworkId { get; set; }
+    public string? LineRootCode { get; set; }
+    public string? LinePositionValue { get; set; }
+    public bool FlagRoot { get; set; }
+    public bool Active { get; set; } = true;
+    public string? LastCompletedID { get; set; }
 }

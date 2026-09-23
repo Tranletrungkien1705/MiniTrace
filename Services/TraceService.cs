@@ -133,6 +133,10 @@ public interface ITraceService
     Task<List<Dealer>> DealersAsync(string? q);
     Task<(bool ok, string msg)> SaveDealerAsync(int id, string dlCode, string dlName, string? dlCodeParent, string? networkId, string? dlBUCode, string? dlBUPattern, string? dlLevel, string? provinceCode, string? dlType, string? dlAddress, string? dlPresentBy, string? dlGovIDNumber, string? dlEmail, string? dlPhoneNo, bool active, string? remark);
     Task<(bool ok, string msg)> DeleteDealerAsync(int id);
+    // Danh mục dây chuyền sản xuất (GS1 Manufacture Line — Mst_ManufactureLine của InBrandCloud)
+    Task<List<ManufactureLine>> ManufactureLinesAsync(string? q);
+    Task<(bool ok, string msg)> SaveManufactureLineAsync(int id, string lineCode, string lineName, string? networkId, string? lineRootCode, string? linePositionValue, bool flagRoot, bool active, string? lastCompletedID);
+    Task<(bool ok, string msg)> DeleteManufactureLineAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1972,5 +1976,62 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.Dealers.Remove(d);
         await db.SaveChangesAsync();
         return (true, "Đã xóa đại lý.");
+    }
+
+    // ===== Danh mục dây chuyền sản xuất (Mst_ManufactureLine của InBrandCloud) =====
+    // "Từ điển" các dây chuyền/máy sản xuất — mắt xích "sản xuất" của chuỗi truy xuất.
+    public async Task<List<ManufactureLine>> ManufactureLinesAsync(string? q)
+    {
+        var query = db.ManufactureLines.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(l => l.LineCode.Contains(q) || l.LineName.Contains(q)
+                || (l.LineRootCode != null && l.LineRootCode.Contains(q)));
+        return await query.OrderBy(l => l.LineCode).Take(500).ToListAsync();
+    }
+
+    // Lưu dây chuyền sản xuất. Áp quy tắc InBrandCloud (Mst_ManufactureLine_CheckDB):
+    //  (1) Cần mã dây chuyền (LineCode) + tên dây chuyền (LineName).
+    //  (2) Mã dây chuyền duy nhất trong tenant — tương đương Mst_ManufactureLine_CheckDB_LineCodeExist.
+    public async Task<(bool ok, string msg)> SaveManufactureLineAsync(int id, string lineCode, string lineName, string? networkId, string? lineRootCode, string? linePositionValue, bool flagRoot, bool active, string? lastCompletedID)
+    {
+        lineCode = (lineCode ?? "").Trim();
+        lineName = (lineName ?? "").Trim();
+        // (1) Bắt buộc mã + tên dây chuyền.
+        if (lineCode.Length == 0) return (false, "Cần mã dây chuyền (LineCode).");
+        if (lineName.Length == 0) return (false, "Cần tên dây chuyền (LineName).");
+        // (2) Mã dây chuyền duy nhất trong tenant.
+        if (await db.ManufactureLines.AnyAsync(l => l.LineCode == lineCode && l.Id != id))
+            return (false, $"Mã dây chuyền '{lineCode}' đã tồn tại.");
+
+        ManufactureLine l;
+        if (id > 0)
+        {
+            l = await db.ManufactureLines.FirstOrDefaultAsync(x => x.Id == id) ?? null!;
+            if (l == null) return (false, "Không tìm thấy dây chuyền.");
+        }
+        else
+        {
+            l = new ManufactureLine();
+            db.ManufactureLines.Add(l);
+        }
+
+        l.LineCode = lineCode; l.LineName = lineName;
+        l.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        l.LineRootCode = string.IsNullOrWhiteSpace(lineRootCode) ? null : lineRootCode.Trim();
+        l.LinePositionValue = string.IsNullOrWhiteSpace(linePositionValue) ? null : linePositionValue.Trim();
+        l.FlagRoot = flagRoot;
+        l.Active = active;
+        l.LastCompletedID = string.IsNullOrWhiteSpace(lastCompletedID) ? null : lastCompletedID.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật dây chuyền." : "Đã thêm dây chuyền.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteManufactureLineAsync(int id)
+    {
+        var l = await db.ManufactureLines.FirstOrDefaultAsync(x => x.Id == id);
+        if (l == null) return (false, "Không tìm thấy dây chuyền.");
+        db.ManufactureLines.Remove(l);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa dây chuyền.");
     }
 }

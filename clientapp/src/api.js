@@ -106,7 +106,10 @@ export const api = {
   deleteDistributionHistory: (id) => req(`/distribution-histories/${id}`, { method: 'DELETE' }),
   dealers: (q) => req(`/dealers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveDealer: (b) => req('/dealers', { method: 'POST', body: b }),
-  deleteDealer: (id) => req(`/dealers/${id}`, { method: 'DELETE' })
+  deleteDealer: (id) => req(`/dealers/${id}`, { method: 'DELETE' }),
+  manufactureLines: (q) => req(`/manufacture-lines${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  saveManufactureLine: (b) => req('/manufacture-lines', { method: 'POST', body: b }),
+  deleteManufactureLine: (id) => req(`/manufacture-lines/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'
