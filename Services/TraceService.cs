@@ -129,6 +129,10 @@ public interface ITraceService
     Task<List<DistributionHistoryView>> DistributionHistoriesAsync(string? q, HistRefType? refType);
     Task<(bool ok, string msg)> SaveDistributionHistoryAsync(int id, string idNo, HistRefType refType, string? networkId, string? refNo, string? invCode, string? productionLotNo, string? boxNo, string? canNo, string? customerCode, string? customerName, string? plateNo, string? moocNo, string? driverName, string? driverPhoneNo, string? areaName, string? userKCS, bool flagIsError, string? remark);
     Task<(bool ok, string msg)> DeleteDistributionHistoryAsync(int id);
+    // Danh mục đại lý / đơn vị phân phối (GS1 Dealer — Mst_Dealer của InBrandCloud)
+    Task<List<Dealer>> DealersAsync(string? q);
+    Task<(bool ok, string msg)> SaveDealerAsync(int id, string dlCode, string dlName, string? dlCodeParent, string? networkId, string? dlBUCode, string? dlBUPattern, string? dlLevel, string? provinceCode, string? dlType, string? dlAddress, string? dlPresentBy, string? dlGovIDNumber, string? dlEmail, string? dlPhoneNo, bool active, string? remark);
+    Task<(bool ok, string msg)> DeleteDealerAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -1902,5 +1906,71 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.DistributionHistories.Remove(h);
         await db.SaveChangesAsync();
         return (true, "Đã xóa lịch sử phân phối.");
+    }
+
+    // ===== Danh mục đại lý / đơn vị phân phối (Mst_Dealer của InBrandCloud) =====
+    // "Từ điển" các đại lý trong chuỗi cung ứng — mắt xích "phân phối" của chuỗi truy xuất.
+    public async Task<List<Dealer>> DealersAsync(string? q)
+    {
+        var query = db.Dealers.AsQueryable();
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(d => d.DLCode.Contains(q) || d.DLName.Contains(q)
+                || (d.DLAddress != null && d.DLAddress.Contains(q))
+                || (d.DLPhoneNo != null && d.DLPhoneNo.Contains(q)));
+        return await query.OrderBy(d => d.DLCode).Take(500).ToListAsync();
+    }
+
+    // Lưu đại lý. Áp quy tắc InBrandCloud (Mst_Dealer_CheckDB + Mst_DealerController Create/Edit):
+    //  (1) Cần mã đại lý (DLCode) + tên đại lý (DLName).
+    //  (2) Mã đại lý duy nhất trong tenant — tương đương Mst_Dealer_CheckDB_DLCodeExist.
+    public async Task<(bool ok, string msg)> SaveDealerAsync(int id, string dlCode, string dlName, string? dlCodeParent, string? networkId, string? dlBUCode, string? dlBUPattern, string? dlLevel, string? provinceCode, string? dlType, string? dlAddress, string? dlPresentBy, string? dlGovIDNumber, string? dlEmail, string? dlPhoneNo, bool active, string? remark)
+    {
+        dlCode = (dlCode ?? "").Trim();
+        dlName = (dlName ?? "").Trim();
+        // (1) Bắt buộc mã + tên đại lý.
+        if (dlCode.Length == 0) return (false, "Cần mã đại lý (DLCode).");
+        if (dlName.Length == 0) return (false, "Cần tên đại lý (DLName).");
+        // (2) Mã đại lý duy nhất trong tenant.
+        if (await db.Dealers.AnyAsync(d => d.DLCode == dlCode && d.Id != id))
+            return (false, $"Mã đại lý '{dlCode}' đã tồn tại.");
+
+        Dealer d;
+        if (id > 0)
+        {
+            d = await db.Dealers.FirstOrDefaultAsync(x => x.Id == id) ?? null!;
+            if (d == null) return (false, "Không tìm thấy đại lý.");
+        }
+        else
+        {
+            d = new Dealer();
+            db.Dealers.Add(d);
+        }
+
+        d.DLCode = dlCode; d.DLName = dlName;
+        d.DLCodeParent = string.IsNullOrWhiteSpace(dlCodeParent) ? null : dlCodeParent.Trim();
+        d.NetworkId = string.IsNullOrWhiteSpace(networkId) ? null : networkId.Trim();
+        d.DLBUCode = string.IsNullOrWhiteSpace(dlBUCode) ? null : dlBUCode.Trim();
+        d.DLBUPattern = string.IsNullOrWhiteSpace(dlBUPattern) ? null : dlBUPattern.Trim();
+        d.DLLevel = string.IsNullOrWhiteSpace(dlLevel) ? null : dlLevel.Trim();
+        d.ProvinceCode = string.IsNullOrWhiteSpace(provinceCode) ? null : provinceCode.Trim();
+        d.DLType = string.IsNullOrWhiteSpace(dlType) ? null : dlType.Trim();
+        d.DLAddress = string.IsNullOrWhiteSpace(dlAddress) ? null : dlAddress.Trim();
+        d.DLPresentBy = string.IsNullOrWhiteSpace(dlPresentBy) ? null : dlPresentBy.Trim();
+        d.DLGovIDNumber = string.IsNullOrWhiteSpace(dlGovIDNumber) ? null : dlGovIDNumber.Trim();
+        d.DLEmail = string.IsNullOrWhiteSpace(dlEmail) ? null : dlEmail.Trim();
+        d.DLPhoneNo = string.IsNullOrWhiteSpace(dlPhoneNo) ? null : dlPhoneNo.Trim();
+        d.Active = active;
+        d.Remark = string.IsNullOrWhiteSpace(remark) ? null : remark.Trim();
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật đại lý." : "Đã thêm đại lý.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteDealerAsync(int id)
+    {
+        var d = await db.Dealers.FirstOrDefaultAsync(x => x.Id == id);
+        if (d == null) return (false, "Không tìm thấy đại lý.");
+        db.Dealers.Remove(d);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa đại lý.");
     }
 }

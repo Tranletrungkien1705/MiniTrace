@@ -764,6 +764,32 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Danh mục đại lý / đơn vị phân phối (GS1 Dealer — Mst_Dealer của InBrandCloud) =====
+    [HttpGet("dealers")]
+    public async Task<IActionResult> Dealers([FromQuery] string? q)
+        => Ok((await svc.DealersAsync(q)).Select(d => new
+        {
+            d.Id, d.DLCode, d.DLName, d.DLCodeParent, d.NetworkId, d.DLBUCode, d.DLBUPattern, d.DLLevel,
+            d.ProvinceCode, d.DLType, d.DLAddress, d.DLPresentBy, d.DLGovIDNumber, d.DLEmail, d.DLPhoneNo,
+            d.Active, d.Remark, d.CreatedAt
+        }));
+
+    [HttpPost("dealers")]
+    public async Task<IActionResult> SaveDealer([FromBody] DealerReq r)
+    {
+        var (ok, msg) = await svc.SaveDealerAsync(r.Id, r.DLCode ?? "", r.DLName ?? "", r.DLCodeParent, r.NetworkId,
+            r.DLBUCode, r.DLBUPattern, r.DLLevel, r.ProvinceCode, r.DLType, r.DLAddress, r.DLPresentBy, r.DLGovIDNumber,
+            r.DLEmail, r.DLPhoneNo, r.Active, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("dealers/{id:int}")]
+    public async Task<IActionResult> DeleteDealer(int id)
+    {
+        var (ok, msg) = await svc.DeleteDealerAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -920,5 +946,26 @@ public class DistributionHistoryReq
     public string? AreaName { get; set; }
     public string? UserKCS { get; set; }
     public bool FlagIsError { get; set; }
+    public string? Remark { get; set; }
+}
+
+public class DealerReq
+{
+    public int Id { get; set; }
+    public string? DLCode { get; set; }
+    public string? DLName { get; set; }
+    public string? DLCodeParent { get; set; }
+    public string? NetworkId { get; set; }
+    public string? DLBUCode { get; set; }
+    public string? DLBUPattern { get; set; }
+    public string? DLLevel { get; set; }
+    public string? ProvinceCode { get; set; }
+    public string? DLType { get; set; }
+    public string? DLAddress { get; set; }
+    public string? DLPresentBy { get; set; }
+    public string? DLGovIDNumber { get; set; }
+    public string? DLEmail { get; set; }
+    public string? DLPhoneNo { get; set; }
+    public bool Active { get; set; } = true;
     public string? Remark { get; set; }
 }

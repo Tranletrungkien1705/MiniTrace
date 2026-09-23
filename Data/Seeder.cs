@@ -448,6 +448,23 @@ public static class Seeder
                     IVerifiedIDInOutNo = "IV2601150004", FlagIsError = true, Remark = "Ghép tem lỗi — cần kiểm tra lại" });
             await db.SaveChangesAsync();
         }
+
+        // Danh mục đại lý / đơn vị phân phối (Mst_Dealer của InBrandCloud) — "từ điển" đại lý trong chuỗi cung ứng.
+        if (!await db.Dealers.AnyAsync())
+        {
+            db.Dealers.AddRange(
+                new Dealer { DLCode = "DL-HCM-01", DLName = "Đại lý phân phối TP.HCM", NetworkId = "Distributor", DLLevel = "1",
+                    ProvinceCode = "79", DLType = "Cấp 1", DLAddress = "Q.1, TP.HCM", DLPresentBy = "Trần Thị B",
+                    DLGovIDNumber = "0312345678", DLEmail = "b@dailyhcm.vn", DLPhoneNo = "0903333444", Active = true,
+                    Remark = "Đại lý cấp 1 — nhận hàng trực tiếp từ nhà máy" },
+                new Dealer { DLCode = "DL-CT-01", DLName = "Đại lý Cần Thơ", NetworkId = "Distributor", DLLevel = "1",
+                    ProvinceCode = "92", DLType = "Cấp 1", DLAddress = "Ninh Kiều, Cần Thơ", DLPresentBy = "Nguyễn Văn D",
+                    DLEmail = "d@dailyct.vn", DLPhoneNo = "0907777888", Active = true, Remark = "Đại lý khu vực ĐBSCL" },
+                new Dealer { DLCode = "DL-HN-01", DLName = "Đại lý Hà Nội", NetworkId = "Distributor", DLLevel = "2",
+                    ProvinceCode = "01", DLType = "Cấp 2", DLAddress = "Hoàng Mai, Hà Nội", DLPresentBy = "Lê Văn E",
+                    DLEmail = "e@dailyhn.vn", DLPhoneNo = "0909999000", Active = false, Remark = "Đại lý cấp 2 — tạm ngưng" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -461,7 +478,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

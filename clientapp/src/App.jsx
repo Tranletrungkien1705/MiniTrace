@@ -42,7 +42,8 @@ function Layout() {
         <NavLink to="/config-column-searches">Cấu hình trường tra cứu</NavLink>
         <NavLink to="/manufactured-ids">Dãy sản xuất</NavLink>
         <NavLink to="/network-masters">Mạng lưới</NavLink>
-        <NavLink to="/distribution-histories">Lịch sử phân phối</NavLink></nav>
+        <NavLink to="/distribution-histories">Lịch sử phân phối</NavLink>
+        <NavLink to="/dealers">Đại lý</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -1907,6 +1908,71 @@ function DistributionHistoryForm({ row, onClose, onSaved }) {
   )
 }
 
+function Dealers() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.dealers(q).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const del = async (d) => {
+    if (!window.confirm(`Xóa đại lý ${d.dlCode}?`)) return
+    try { const r = await api.deleteDealer(d.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <div className="toolbar"><h1 style={{ margin: 0, flex: 'none' }}>Đại lý / Đơn vị phân phối</h1><div className="sp" />
+        <input style={{ maxWidth: 220 }} placeholder="Tìm mã / tên / địa chỉ…" value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && load()} />
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, dlCode: '', dlName: '', dlCodeParent: '', networkId: '', dlBUCode: '', dlBUPattern: '', dlLevel: '', provinceCode: '', dlType: '', dlAddress: '', dlPresentBy: '', dlGovIDNumber: '', dlEmail: '', dlPhoneNo: '', active: true, remark: '' })}>+ Thêm đại lý</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Danh mục đại lý / đơn vị phân phối (GS1 Dealer — Mst_Dealer) — "từ điển" các đại lý trong chuỗi cung ứng, mắt xích "phân phối" của chuỗi truy xuất. Khi tổ chức đăng ký mạng hoặc ghi lịch sử phân phối, mã đại lý phải tồn tại và đang hoạt động.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã (DLCode)</th><th>Tên đại lý</th><th>Cấp</th><th>Loại</th><th>Tỉnh/Thành</th><th>Điện thoại</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(d => (
+            <tr key={d.id}><td style={{ fontFamily: 'monospace' }}>{d.dlCode}</td><td>{d.dlName}</td>
+              <td>{d.dlLevel || '—'}</td><td>{d.dlType || '—'}</td><td className="muted">{d.provinceCode || '—'}</td>
+              <td className="muted">{d.dlPhoneNo || '—'}</td>
+              <td><Badge text={d.active ? 'Đang dùng' : 'Ngưng'} css={d.active ? 'success' : 'secondary'} /></td>
+              <td className="right" style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn ghost sm" onClick={() => setEdit(d)}>Sửa</button>{' '}
+                <button className="btn gray sm" onClick={() => del(d)}>Xóa</button></td></tr>))}
+            {rows.length === 0 && <tr><td colSpan={8} className="muted" style={{ padding: 20 }}>Chưa có đại lý.</td></tr>}</tbody></table>
+      </div>
+      {edit && <DealerForm dealer={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function DealerForm({ dealer, onClose, onSaved }) {
+  const [f, setF] = useState({ ...dealer }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveDealer({ ...f }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa đại lý ${f.dlCode}` : 'Thêm đại lý'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã đại lý (DLCode) *"><input value={f.dlCode} onChange={e => up('dlCode', e.target.value)} placeholder="vd: DL-HCM-01" /></Field>
+        <Field label="Tên đại lý (DLName) *"><input value={f.dlName} onChange={e => up('dlName', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Mã đại lý cha (DLCodeParent)"><input value={f.dlCodeParent || ''} onChange={e => up('dlCodeParent', e.target.value)} /></Field>
+        <Field label="Loại mạng (NetworkID)"><input value={f.networkId || ''} onChange={e => up('networkId', e.target.value)} placeholder="vd: Distributor" /></Field></div>
+      <div className="row"><Field label="Cấp đại lý (DLLevel)"><input value={f.dlLevel || ''} onChange={e => up('dlLevel', e.target.value)} placeholder="vd: 1" /></Field>
+        <Field label="Loại đại lý (DLType)"><input value={f.dlType || ''} onChange={e => up('dlType', e.target.value)} placeholder="vd: Cấp 1" /></Field></div>
+      <div className="row"><Field label="Mã tỉnh/thành (ProvinceCode)"><input value={f.provinceCode || ''} onChange={e => up('provinceCode', e.target.value)} placeholder="vd: 79" /></Field>
+        <Field label="Điện thoại (DLPhoneNo)"><input value={f.dlPhoneNo || ''} onChange={e => up('dlPhoneNo', e.target.value)} /></Field></div>
+      <Field label="Địa chỉ (DLAddress)"><input value={f.dlAddress || ''} onChange={e => up('dlAddress', e.target.value)} /></Field>
+      <div className="row"><Field label="Người đại diện (DLPresentBy)"><input value={f.dlPresentBy || ''} onChange={e => up('dlPresentBy', e.target.value)} /></Field>
+        <Field label="Email (DLEmail)"><input value={f.dlEmail || ''} onChange={e => up('dlEmail', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Số giấy tờ/ĐKKD (DLGovIDNumber)"><input value={f.dlGovIDNumber || ''} onChange={e => up('dlGovIDNumber', e.target.value)} /></Field>
+        <Field label="Mã đơn vị KD (DLBUCode)"><input value={f.dlBUCode || ''} onChange={e => up('dlBUCode', e.target.value)} /></Field></div>
+      <Field label="Ghi chú (Remark)"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <input type="checkbox" style={{ width: 'auto' }} checked={f.active} onChange={e => up('active', e.target.checked)} /> Đang hoạt động</label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần mã + tên đại lý; mã đại lý duy nhất trong hệ thống.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Thêm'}</button></div>
+    </Modal>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
@@ -1939,6 +2005,7 @@ export default function App() {
         <Route path="manufactured-ids" element={<ManufacturedIds />} />
         <Route path="network-masters" element={<NetworkMasters />} />
         <Route path="distribution-histories" element={<DistributionHistories />} />
+        <Route path="dealers" element={<Dealers />} />
       </Route>
     </Routes>
   )

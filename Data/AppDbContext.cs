@@ -44,6 +44,7 @@ public class AppDbContext : DbContext
     public DbSet<ManufacturedId> ManufacturedIds => Set<ManufacturedId>();
     public DbSet<NetworkMaster> NetworkMasters => Set<NetworkMaster>();
     public DbSet<DistributionHistory> DistributionHistories => Set<DistributionHistory>();
+    public DbSet<Dealer> Dealers => Set<Dealer>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -230,6 +231,11 @@ public class AppDbContext : DbContext
         {
             e.HasIndex(x => new { x.OrgId, x.IF_InvInHistNo }).IsUnique();   // mã bản ghi lịch sử duy nhất trong tenant
             e.HasIndex(x => new { x.OrgId, x.IDNo });                        // tra cứu hành trình theo tem
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<Dealer>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.DLCode }).IsUnique();   // mã đại lý duy nhất trong tenant
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }

@@ -894,3 +894,34 @@ public class DistributionHistory : IOrgOwned
     public string? Remark { get; set; }                 // Remark — ghi chú
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Danh mục Đại lý / Đơn vị phân phối (GS1 Dealer — Mst_Dealer của InBrandCloud).
+/// "Từ điển" các đại lý/đơn vị phân phối trong chuỗi cung ứng: mỗi dòng gắn một mã đại lý
+/// (DLCode) với tên, loại, địa chỉ, tỉnh/thành (ProvinceCode), người đại diện, email, điện thoại.
+/// Đây là mắt xích "phân phối" của chuỗi truy xuất: khi một tổ chức đăng ký tham gia mạng
+/// (Mst_NNT) hoặc khi ghi lịch sử phân phối, hệ thống kiểm tra mã đại lý phải tồn tại và
+/// đang hoạt động (tương đương Mst_Dealer_CheckDB của InBrandCloud).
+/// </summary>
+public class Dealer : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string DLCode { get; set; } = "";          // DLCode — mã đại lý (duy nhất trong tenant)
+    public string? DLCodeParent { get; set; }           // DLCodeParent — mã đại lý cấp cha
+    public string? NetworkId { get; set; }              // NetworkID — môi trường/loại mạng áp dụng
+    public string? DLBUCode { get; set; }               // DLBUCode — mã đơn vị kinh doanh
+    public string? DLBUPattern { get; set; }            // DLBUPattern — mẫu mã đơn vị kinh doanh
+    public string? DLLevel { get; set; }                // DLLevel — cấp đại lý
+    public string? ProvinceCode { get; set; }           // ProvinceCode — mã tỉnh/thành (tham chiếu Mst_Province)
+    public string DLName { get; set; } = "";          // DLName — tên đại lý
+    public string? DLType { get; set; }                 // DLType — loại đại lý
+    public string? DLAddress { get; set; }              // DLAddress — địa chỉ
+    public string? DLPresentBy { get; set; }            // DLPresentBy — người đại diện
+    public string? DLGovIDNumber { get; set; }          // DLGovIDNumber — số giấy tờ/ĐKKD
+    public string? DLEmail { get; set; }                // DLEmail — email
+    public string? DLPhoneNo { get; set; }              // DLPhoneNo — điện thoại
+    public bool Active { get; set; } = true;            // FlagActive — đang hoạt động
+    public string? Remark { get; set; }                 // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+}
