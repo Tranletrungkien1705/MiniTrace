@@ -150,6 +150,15 @@ public interface ITraceService
     Task<List<NotifyForSearch>> NotifyForSearchesAsync(string? q);
     Task<(bool ok, string msg)> SaveNotifyForSearchAsync(int id, string notiFSNo, string notifyDesc, string? effDateStart, string? effDateEnd, string? networkId, string? orgCode, bool active, string? remark);
     Task<(bool ok, string msg)> DeleteNotifyForSearchAsync(int id);
+    // Phiếu xuất ghép tem (Inv_VerifiedIDInOut của InBrandCloud eTEM)
+    Task<List<VerifiedIdInOut>> VerifiedIdInOutsAsync(string? q, VerifiedInOutStatus? status);
+    Task<(bool ok, string msg)> SaveVerifiedIdInOutAsync(int id, string iVerifiedIDInOutNo, string ifInvOutNo, string? productCode, string? productName,
+        string? unitCode, double qtyInit, double qtyVerified, double qtyPlan, string? refNoSys, string? refNo, string? refType, string? invOutType,
+        string? invCode, string? plateNo, string? moocNo, string? driverName, string? driverPhoneNo, string? orgIdCustomer, string? customerCode,
+        string? customerName, string? customerAddress, string? userKcs, string? userMoveOrder, string? transportType, string? receivePlace,
+        string? maVungVT, string? productionDate, string? shiftInCode, string? productionLotNo, string? salesDTime, string? packageDate, string? remark);
+    Task<(bool ok, string msg)> CancelVerifiedIdInOutAsync(int id, string? by);
+    Task<(bool ok, string msg)> DeleteVerifiedIdInOutAsync(int id);
 }
 
 /// <summary>Kết quả 1 lần quét xác thực (trả về cho NTD).</summary>
@@ -2237,5 +2246,94 @@ public class TraceService(AppDbContext db, IHttpClientFactory httpFactory) : ITr
         db.NotifyForSearches.Remove(nfs);
         await db.SaveChangesAsync();
         return (true, "Đã xóa thông báo.");
+    }
+
+    // ===== Phiếu xuất ghép tem (Inv_VerifiedIDInOut của InBrandCloud eTEM) =====
+    public async Task<List<VerifiedIdInOut>> VerifiedIdInOutsAsync(string? q, VerifiedInOutStatus? status)
+    {
+        var query = db.VerifiedIdInOuts.AsQueryable();
+        if (status.HasValue) query = query.Where(v => v.Status == status.Value);
+        if (!string.IsNullOrWhiteSpace(q))
+            query = query.Where(v => v.IVerifiedIDInOutNo.Contains(q) || v.IF_InvOutNo.Contains(q)
+                || (v.CustomerName != null && v.CustomerName.Contains(q)) || (v.ProductCode != null && v.ProductCode.Contains(q)));
+        var list = await query.ToListAsync();
+        return list.OrderByDescending(v => v.CreatedAt).ToList();
+    }
+
+    // Lưu phiếu xuất ghép tem. Áp quy tắc InBrandCloud (Inv_InvVerifiedID_OutGenInAndOut_New20251008):
+    //  (1) Cần mã phiếu xuất kho (IF_InvOutNo).
+    //  (2) Cần mã đơn hàng hệ thống (RefNoSys) — tương đương Inv_InventoryVerifiedID_AddMulti_InvalidRefNoSys.
+    //  (3) Cần mã đơn hàng (RefNo) — tương đương Inv_InventoryVerifiedID_AddMulti_InvalidRefNo.
+    //  (4) Mã lần xuất ghép duy nhất trong tenant — chống trùng.
+    //  (5) Số lượng ghép được (QtyVerified) không vượt quá số lượng thực tế (QtyInit).
+    public async Task<(bool ok, string msg)> SaveVerifiedIdInOutAsync(int id, string iVerifiedIDInOutNo, string ifInvOutNo, string? productCode, string? productName,
+        string? unitCode, double qtyInit, double qtyVerified, double qtyPlan, string? refNoSys, string? refNo, string? refType, string? invOutType,
+        string? invCode, string? plateNo, string? moocNo, string? driverName, string? driverPhoneNo, string? orgIdCustomer, string? customerCode,
+        string? customerName, string? customerAddress, string? userKcs, string? userMoveOrder, string? transportType, string? receivePlace,
+        string? maVungVT, string? productionDate, string? shiftInCode, string? productionLotNo, string? salesDTime, string? packageDate, string? remark)
+    {
+        iVerifiedIDInOutNo = (iVerifiedIDInOutNo ?? "").Trim();
+        ifInvOutNo = (ifInvOutNo ?? "").Trim();
+        refNoSys = string.IsNullOrWhiteSpace(refNoSys) ? null : refNoSys.Trim();
+        refNo = string.IsNullOrWhiteSpace(refNo) ? null : refNo.Trim();
+        // (1) Cần mã phiếu xuất kho.
+        if (ifInvOutNo.Length == 0) return (false, "Cần số phiếu xuất kho (IF_InvOutNo).");
+        // (2) Cần mã đơn hàng hệ thống.
+        if (refNoSys == null) return (false, "Cần mã đơn hàng hệ thống (RefNoSys).");
+        // (3) Cần mã đơn hàng.
+        if (refNo == null) return (false, "Cần mã đơn hàng (RefNo).");
+        // (5) Số lượng ghép được không vượt quá số lượng thực tế.
+        if (qtyVerified > qtyInit) return (false, "Số lượng ghép được (QtyVerified) không được vượt quá số lượng thực tế (QtyInit).");
+
+        VerifiedIdInOut v;
+        if (id > 0)
+        {
+            v = await db.VerifiedIdInOuts.FirstOrDefaultAsync(x => x.Id == id) ?? null!;
+            if (v == null) return (false, "Không tìm thấy phiếu xuất ghép.");
+            if (v.Status == VerifiedInOutStatus.Cancelled) return (false, "Phiếu đã hủy — không thể sửa.");
+        }
+        else
+        {
+            // (4) Mã lần xuất ghép duy nhất trong tenant; cấp tự động nếu chưa có.
+            if (iVerifiedIDInOutNo.Length == 0) iVerifiedIDInOutNo = "IV" + DateTime.Now.ToString("yyMMddHHmmss");
+            if (await db.VerifiedIdInOuts.AnyAsync(x => x.IVerifiedIDInOutNo == iVerifiedIDInOutNo)) return (false, $"Mã '{iVerifiedIDInOutNo}' đã tồn tại.");
+            v = new VerifiedIdInOut(); db.VerifiedIdInOuts.Add(v);
+        }
+
+        v.IVerifiedIDInOutNo = iVerifiedIDInOutNo; v.IF_InvOutNo = ifInvOutNo;
+        v.ProductCode = productCode; v.ProductName = productName; v.UnitCode = unitCode;
+        v.QtyInit = qtyInit; v.QtyVerified = qtyVerified; v.QtyPlan = qtyPlan;
+        v.RefNoSys = refNoSys; v.RefNo = refNo; v.RefType = refType; v.InvOutType = invOutType; v.InvCode = invCode;
+        v.PlateNo = plateNo; v.MoocNo = moocNo; v.DriverName = driverName; v.DriverPhoneNo = driverPhoneNo;
+        v.OrgID_Customer = orgIdCustomer; v.CustomerCode = customerCode; v.CustomerName = customerName; v.CustomerAddress = customerAddress;
+        v.UserKCS = userKcs; v.UserMoveOrder = userMoveOrder; v.TransportType = transportType; v.ReceivePlace = receivePlace;
+        v.MaVungVT = maVungVT; v.ProductionDate = productionDate; v.ShiftInCode = shiftInCode; v.ProductionLotNo = productionLotNo;
+        v.SalesDTime = salesDTime; v.PackageDate = packageDate; v.Remark = remark;
+        v.UpdatedAt = DateTime.Now;
+        await db.SaveChangesAsync();
+        return (true, id > 0 ? "Đã cập nhật phiếu xuất ghép." : "Đã tạo phiếu xuất ghép.");
+    }
+
+    // Hủy phiếu xuất ghép (Inv_VerifiedIDInOut_Cancel của InBrandCloud eTEM): chỉ hủy được phiếu đang hiệu lực.
+    public async Task<(bool ok, string msg)> CancelVerifiedIdInOutAsync(int id, string? by)
+    {
+        var v = await db.VerifiedIdInOuts.FirstOrDefaultAsync(x => x.Id == id);
+        if (v == null) return (false, "Không tìm thấy phiếu xuất ghép.");
+        if (v.Status == VerifiedInOutStatus.Cancelled) return (false, "Phiếu đã hủy trước đó.");
+        v.Status = VerifiedInOutStatus.Cancelled;
+        v.CancelBy = string.IsNullOrWhiteSpace(by) ? null : by.Trim();
+        v.CancelDTime = DateTime.Now;
+        v.UpdatedAt = DateTime.Now;
+        await db.SaveChangesAsync();
+        return (true, "Đã hủy phiếu xuất ghép.");
+    }
+
+    public async Task<(bool ok, string msg)> DeleteVerifiedIdInOutAsync(int id)
+    {
+        var v = await db.VerifiedIdInOuts.FirstOrDefaultAsync(x => x.Id == id);
+        if (v == null) return (false, "Không tìm thấy phiếu xuất ghép.");
+        db.VerifiedIdInOuts.Remove(v);
+        await db.SaveChangesAsync();
+        return (true, "Đã xóa phiếu xuất ghép.");
     }
 }

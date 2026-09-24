@@ -887,6 +887,44 @@ public class ApiV1Controller(ITraceService svc, ICache cache, ITenantContext ten
         return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
     }
 
+    // ===== Phiếu xuất ghép tem (Inv_VerifiedIDInOut của InBrandCloud eTEM) =====
+    [HttpGet("verified-id-in-outs")]
+    public async Task<IActionResult> VerifiedIdInOuts([FromQuery] string? q, [FromQuery] int? status)
+        => Ok((await svc.VerifiedIdInOutsAsync(q, status.HasValue ? (VerifiedInOutStatus)status.Value : null)).Select(v => new
+        {
+            v.Id, v.IVerifiedIDInOutNo, v.IF_InvOutNo, v.ProductCode, v.ProductName, v.UnitCode,
+            v.QtyInit, v.QtyVerified, v.QtyPlan, v.RefNoSys, v.RefNo, v.RefType, v.InvOutType, v.InvCode,
+            v.PlateNo, v.MoocNo, v.DriverName, v.DriverPhoneNo, v.OrgID_Customer, v.CustomerCode, v.CustomerName, v.CustomerAddress,
+            v.UserKCS, v.UserMoveOrder, v.TransportType, v.ReceivePlace, v.MaVungVT, v.ProductionDate, v.ShiftInCode, v.ProductionLotNo,
+            v.SalesDTime, v.PackageDate, status = (int)v.Status, statusText = Ui.VerifiedInOut(v.Status).text, css = Ui.VerifiedInOut(v.Status).css,
+            v.CancelBy, v.CancelDTime, v.Remark, v.CreatedAt, v.UpdatedAt
+        }));
+
+    [HttpPost("verified-id-in-outs")]
+    public async Task<IActionResult> SaveVerifiedIdInOut([FromBody] VerifiedIdInOutReq r)
+    {
+        var (ok, msg) = await svc.SaveVerifiedIdInOutAsync(r.Id, r.IVerifiedIDInOutNo ?? "", r.IF_InvOutNo ?? "", r.ProductCode, r.ProductName,
+            r.UnitCode, r.QtyInit, r.QtyVerified, r.QtyPlan, r.RefNoSys, r.RefNo, r.RefType, r.InvOutType,
+            r.InvCode, r.PlateNo, r.MoocNo, r.DriverName, r.DriverPhoneNo, r.OrgID_Customer, r.CustomerCode,
+            r.CustomerName, r.CustomerAddress, r.UserKCS, r.UserMoveOrder, r.TransportType, r.ReceivePlace,
+            r.MaVungVT, r.ProductionDate, r.ShiftInCode, r.ProductionLotNo, r.SalesDTime, r.PackageDate, r.Remark);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpPost("verified-id-in-outs/{id:int}/cancel")]
+    public async Task<IActionResult> CancelVerifiedIdInOut(int id, [FromBody] VerifiedIdInOutCancelReq? r)
+    {
+        var (ok, msg) = await svc.CancelVerifiedIdInOutAsync(id, r?.By);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
+    [HttpDelete("verified-id-in-outs/{id:int}")]
+    public async Task<IActionResult> DeleteVerifiedIdInOut(int id)
+    {
+        var (ok, msg) = await svc.DeleteVerifiedIdInOutAsync(id);
+        return ok ? Ok(new { ok, msg }) : BadRequest(new { ok, error = msg });
+    }
+
     // Tra cứu công khai xuyên tenant theo mã đơn vị.
     [HttpGet("trace/{code}")]
     public async Task<IActionResult> Trace(string code)
@@ -1095,3 +1133,42 @@ public class WarningSyncESMarkReq { public int Status { get; set; } }
 
 public class ProvinceReq { public int Id { get; set; } public string? Code { get; set; } public string? Name { get; set; } public string? CountryCode { get; set; } public bool Active { get; set; } = true; }
 public class NotifyForSearchReq { public int Id { get; set; } public string? NotiFSNo { get; set; } public string? NotifyDesc { get; set; } public string? EffDateStart { get; set; } public string? EffDateEnd { get; set; } public string? NetworkId { get; set; } public string? OrgCode { get; set; } public bool Active { get; set; } = true; public string? Remark { get; set; } }
+
+public class VerifiedIdInOutReq
+{
+    public int Id { get; set; }
+    public string? IVerifiedIDInOutNo { get; set; }
+    public string? IF_InvOutNo { get; set; }
+    public string? ProductCode { get; set; }
+    public string? ProductName { get; set; }
+    public string? UnitCode { get; set; }
+    public double QtyInit { get; set; }
+    public double QtyVerified { get; set; }
+    public double QtyPlan { get; set; }
+    public string? RefNoSys { get; set; }
+    public string? RefNo { get; set; }
+    public string? RefType { get; set; }
+    public string? InvOutType { get; set; }
+    public string? InvCode { get; set; }
+    public string? PlateNo { get; set; }
+    public string? MoocNo { get; set; }
+    public string? DriverName { get; set; }
+    public string? DriverPhoneNo { get; set; }
+    public string? OrgID_Customer { get; set; }
+    public string? CustomerCode { get; set; }
+    public string? CustomerName { get; set; }
+    public string? CustomerAddress { get; set; }
+    public string? UserKCS { get; set; }
+    public string? UserMoveOrder { get; set; }
+    public string? TransportType { get; set; }
+    public string? ReceivePlace { get; set; }
+    public string? MaVungVT { get; set; }
+    public string? ProductionDate { get; set; }
+    public string? ShiftInCode { get; set; }
+    public string? ProductionLotNo { get; set; }
+    public string? SalesDTime { get; set; }
+    public string? PackageDate { get; set; }
+    public string? Remark { get; set; }
+}
+
+public class VerifiedIdInOutCancelReq { public string? By { get; set; } }

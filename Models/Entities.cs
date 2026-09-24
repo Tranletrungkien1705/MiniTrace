@@ -1038,3 +1038,70 @@ public class NotifyForSearch : IOrgOwned
     public DateTime CreatedAt { get; set; } = DateTime.Now;
     public DateTime UpdatedAt { get; set; } = DateTime.Now;
 }
+
+/// <summary>
+/// Trạng thái phiếu xuất ghép tem (Status của Inv_VerifiedIDInOut).
+/// Active = đang hiệu lực (đã ghép tem xuất kho), Cancelled = đã hủy (hoàn tem về kho).
+/// </summary>
+public enum VerifiedInOutStatus
+{
+    Active = 0,     // Đang hiệu lực
+    Cancelled = 1   // Đã hủy
+}
+
+/// <summary>
+/// Phiếu xuất ghép tem (GS1 Outbound Stamp Matching — Inv_VerifiedIDInOut của InBrandCloud eTEM).
+/// Mỗi dòng = 1 lần "xuất ghép": gắn một lô tem (IDNo) đã xác thực vào một phiếu xuất kho
+/// (IF_InvOutNo) để giao cho khách hàng/đại lý. Đây là mắt xích "xuất kho" của chuỗi truy xuất:
+/// nối kho số tem với khách hàng nhận hàng, tài xế/vận chuyển (PlateNo/MoocNo/DriverName/DriverPhoneNo)
+/// và vùng thị trường (MaVungVT). QtyInit = số lượng thực tế nhập vào, QtyVerified = số lượng ghép được,
+/// QtyPlan = số lượng kế hoạch. Khi hủy phiếu (Cancel), tem được hoàn về kho (FlagUsed=0).
+/// Áp quy tắc InBrandCloud (Inv_InvVerifiedID_OutGenInAndOut_New20251008 + Inv_VerifiedIDInOut_Cancel):
+///  (1) cần mã phiếu xuất kho (IF_InvOutNo);
+///  (2) cần mã đơn hàng hệ thống (RefNoSys) và mã đơn hàng (RefNo);
+///  (3) mã phiếu xuất ghép duy nhất trong tenant — chống trùng;
+///  (4) chỉ hủy được phiếu đang hiệu lực.
+/// </summary>
+public class VerifiedIdInOut : IOrgOwned
+{
+    public int Id { get; set; }
+    public Guid OrgId { get; set; }
+    public string IVerifiedIDInOutNo { get; set; } = "";  // IVerifiedIDInOutNo — mã lần xuất ghép (duy nhất trong tenant)
+    public string IF_InvOutNo { get; set; } = "";          // IF_InvOutNo — số phiếu xuất kho
+    public string? OrgID { get; set; }                     // OrgID — mã tổ chức xuất kho
+    public string? ProductCode { get; set; }               // ProductCode — mã sản phẩm
+    public string? ProductName { get; set; }               // ProductName — tên sản phẩm
+    public string? UnitCode { get; set; }                  // UnitCode — đơn vị tính
+    public double QtyInit { get; set; }                    // QtyInit — số lượng thực tế nhập vào
+    public double QtyVerified { get; set; }                // QtyVerified — số lượng ghép được
+    public double QtyPlan { get; set; }                    // QtyPlan — số lượng kế hoạch
+    public string? RefNoSys { get; set; }                  // RefNoSys — mã đơn hàng (hệ thống)
+    public string? RefNo { get; set; }                     // RefNo — mã đơn hàng
+    public string? RefType { get; set; }                   // RefType — loại đơn hàng
+    public string? InvOutType { get; set; }                // InvOutType — loại xuất kho
+    public string? InvCode { get; set; }                   // InvCode — mã kho xuất
+    public string? PlateNo { get; set; }                   // PlateNo — biển số xe vận chuyển
+    public string? MoocNo { get; set; }                    // MoocNo — số mooc/rơ-moóc
+    public string? DriverName { get; set; }                // DriverName — tên tài xế
+    public string? DriverPhoneNo { get; set; }             // DriverPhoneNo — điện thoại tài xế
+    public string? OrgID_Customer { get; set; }            // OrgID_Customer — mã tổ chức khách hàng
+    public string? CustomerCode { get; set; }              // CustomerCode — mã khách hàng nhận
+    public string? CustomerName { get; set; }              // CustomerName — tên khách hàng nhận
+    public string? CustomerAddress { get; set; }           // CustomerAddress — địa chỉ khách hàng
+    public string? UserKCS { get; set; }                   // UserKCS — người KCS
+    public string? UserMoveOrder { get; set; }             // UserMoveOrder — người điều chuyển
+    public string? TransportType { get; set; }             // TransportType — loại phương tiện
+    public string? ReceivePlace { get; set; }              // ReceivePlace — địa điểm nhận hàng
+    public string? MaVungVT { get; set; }                  // MaVungVT — mã vùng vận tải (tham chiếu Mst_MarketArea)
+    public string? ProductionDate { get; set; }            // ProductionDate — ngày sản xuất
+    public string? ShiftInCode { get; set; }               // ShiftInCode — ca sản xuất
+    public string? ProductionLotNo { get; set; }           // ProductionLotNo — lô sản xuất
+    public string? SalesDTime { get; set; }                // SalesDTime — ngày xuất hàng
+    public string? PackageDate { get; set; }               // PackageDate — ngày đóng hàng
+    public VerifiedInOutStatus Status { get; set; } = VerifiedInOutStatus.Active;  // trạng thái phiếu
+    public string? CancelBy { get; set; }                  // người hủy phiếu
+    public DateTime? CancelDTime { get; set; }             // thời điểm hủy phiếu
+    public string? Remark { get; set; }                    // Remark — ghi chú
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+}

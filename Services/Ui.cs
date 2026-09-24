@@ -84,4 +84,11 @@ public static class Ui
         WarningSyncStatus.Synced => ("Đã đồng bộ ES", "success", "bi-cloud-check"),
         _ => (s.ToString(), "secondary", "bi-dot")
     };
+
+    public static (string text, string css, string icon) VerifiedInOut(VerifiedInOutStatus s) => s switch
+    {
+        VerifiedInOutStatus.Active => ("Đang hiệu lực", "success", "bi-check2-circle"),
+        VerifiedInOutStatus.Cancelled => ("Đã hủy", "secondary", "bi-x-circle"),
+        _ => (s.ToString(), "secondary", "bi-dot")
+    };
 }

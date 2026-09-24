@@ -524,6 +524,39 @@ public static class Seeder
                     Remark = "Đã hết hiệu lực" });
             await db.SaveChangesAsync();
         }
+
+        // Phiếu xuất ghép tem (Inv_VerifiedIDInOut của InBrandCloud eTEM) — gắn lô tem đã xác thực vào phiếu xuất kho.
+        if (!await db.VerifiedIdInOuts.AnyAsync())
+        {
+            db.VerifiedIdInOuts.AddRange(
+                new VerifiedIdInOut { IVerifiedIDInOutNo = "IV2601100002", IF_InvOutNo = "PX2601100002", OrgID = "MST-NXSX-ST",
+                    ProductCode = "8930001001", ProductName = "Gạo ST25 túi 5kg", UnitCode = "Túi", QtyInit = 3, QtyVerified = 3, QtyPlan = 3,
+                    RefNoSys = "PX2601100002", RefNo = "PX2601100002", RefType = "OUT", InvOutType = "SALE", InvCode = "KHO-FG-ST",
+                    PlateNo = "51C-12345", MoocNo = "MOOC-01", DriverName = "Trần Văn Tài", DriverPhoneNo = "0903333444",
+                    OrgID_Customer = "MST-DL-HCM", CustomerCode = "DL-HCM-01", CustomerName = "Đại lý phân phối TP.HCM", CustomerAddress = "Q.1, TP.HCM",
+                    UserKCS = "Nguyễn Văn KCS", UserMoveOrder = "Trần Thị B", TransportType = "Xe tải", ReceivePlace = "Kho đại lý TP.HCM",
+                    MaVungVT = "MA-TPHCM", ProductionDate = "2026-01-05", ShiftInCode = "CA1", ProductionLotNo = "L2026-001",
+                    SalesDTime = "2026-01-10", PackageDate = "2026-01-06", Status = VerifiedInOutStatus.Active,
+                    Remark = "Xuất ghép 3 tem → Đại lý cấp 1 TP.HCM" },
+                new VerifiedIdInOut { IVerifiedIDInOutNo = "IV2601120003", IF_InvOutNo = "PX2601120003", OrgID = "MST-NXSX-ST",
+                    ProductCode = "8930001001", ProductName = "Gạo ST25 túi 5kg", UnitCode = "Túi", QtyInit = 2, QtyVerified = 2, QtyPlan = 2,
+                    RefNoSys = "PX2601120003", RefNo = "PX2601120003", RefType = "OUT", InvOutType = "SALE", InvCode = "KHO-FG-ST",
+                    PlateNo = "51C-67890", DriverName = "Lê Văn Giao", DriverPhoneNo = "0905555666",
+                    OrgID_Customer = "MST-BANLE-COOP", CustomerCode = "COOP-Q1", CustomerName = "Siêu thị Co.opmart Q.1", CustomerAddress = "Q.1, TP.HCM",
+                    UserKCS = "Nguyễn Văn KCS", TransportType = "Xe tải", ReceivePlace = "Siêu thị Co.opmart Q.1",
+                    MaVungVT = "MA-MIENN", ProductionDate = "2026-01-05", ShiftInCode = "CA1", ProductionLotNo = "L2026-001",
+                    SalesDTime = "2026-01-12", Status = VerifiedInOutStatus.Active,
+                    Remark = "Xuất ghép 2 tem → điểm bán lẻ" },
+                new VerifiedIdInOut { IVerifiedIDInOutNo = "IV2601150004", IF_InvOutNo = "PX2601150004", OrgID = "MST-NXSX-ST",
+                    ProductCode = "8930001001", ProductName = "Gạo ST25 túi 5kg", UnitCode = "Túi", QtyInit = 1, QtyVerified = 0, QtyPlan = 1,
+                    RefNoSys = "PX2601150004", RefNo = "PX2601150004", RefType = "OUT", InvOutType = "SALE", InvCode = "KHO-FG-ST",
+                    PlateNo = "51C-12345", DriverName = "Trần Văn Tài", DriverPhoneNo = "0903333444",
+                    OrgID_Customer = "MST-DL-HCM", CustomerCode = "DL-HCM-01", CustomerName = "Đại lý phân phối TP.HCM",
+                    UserKCS = "Nguyễn Văn KCS", MaVungVT = "MA-TPHCM", ProductionLotNo = "L2026-001",
+                    Status = VerifiedInOutStatus.Cancelled, CancelBy = "Nguyễn Văn KCS", CancelDTime = DateTime.Now.AddDays(-1),
+                    Remark = "Ghép tem lỗi — đã hủy, hoàn tem về kho" });
+            await db.SaveChangesAsync();
+        }
     }
 
     // Hash MD5 của "IDNo|PIN" (tương đương Inv_InventoryGenID_HashMD5 của InBrandCloud eTEM).
@@ -537,7 +570,7 @@ public static class Seeder
     {
         if (!db.Database.IsNpgsql()) return;
         var def = TenantContext.DefaultOrgId;
-        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines", "WarningSyncESs", "Provinces", "NotifyForSearches" };
+        var tables = new[] { "Products", "Units", "Events", "Verifications", "Ctes", "Kdes", "DataTypes", "CteKdes", "Glns", "OrgGlns", "Farms", "MarketAreas", "Templates", "TplNwtCtes", "TplNwtKdes", "TplNwtCteKdes", "TplViewEvents", "Records", "RecordSpecs", "StampBatches", "Stamps", "Boxes", "BoxItems", "Cartons", "CartonItems", "QueSyncs", "MasterDatas", "NetworkOrgs", "Secrets", "StampPairs", "ProductIds", "ConfigColumnSearches", "ManufacturedIds", "NetworkMasters", "DistributionHistories", "Dealers", "ManufactureLines", "WarningSyncESs", "Provinces", "NotifyForSearches", "VerifiedIdInOuts" };
         var sql = new List<string>
         {
             "CREATE TABLE IF NOT EXISTS minitrace.\"Orgs\" (\"Id\" uuid PRIMARY KEY, \"Name\" text NOT NULL DEFAULT '', \"ApiKey\" text NOT NULL DEFAULT '', \"CreatedAt\" timestamp NOT NULL DEFAULT now())",

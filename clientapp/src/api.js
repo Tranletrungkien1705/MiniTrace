@@ -119,7 +119,11 @@ export const api = {
   deleteProvince: (id) => req(`/provinces/${id}`, { method: 'DELETE' }),
   notifyForSearches: (q) => req(`/notify-for-searches${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   saveNotifyForSearch: (b) => req('/notify-for-searches', { method: 'POST', body: b }),
-  deleteNotifyForSearch: (id) => req(`/notify-for-searches/${id}`, { method: 'DELETE' })
+  deleteNotifyForSearch: (id) => req(`/notify-for-searches/${id}`, { method: 'DELETE' }),
+  verifiedIdInOuts: (q, status) => req(`/verified-id-in-outs?${status !== undefined && status !== null ? `status=${status}&` : ''}${q ? `q=${encodeURIComponent(q)}` : ''}`),
+  saveVerifiedIdInOut: (b) => req('/verified-id-in-outs', { method: 'POST', body: b }),
+  cancelVerifiedIdInOut: (id, b) => req(`/verified-id-in-outs/${id}/cancel`, { method: 'POST', body: b || {} }),
+  deleteVerifiedIdInOut: (id) => req(`/verified-id-in-outs/${id}`, { method: 'DELETE' })
 }
 export const fmtDate = (s) => s ? new Date(s).toLocaleDateString('vi-VN') : '—'
 export const fmtDateTime = (s) => s ? new Date(s).toLocaleString('vi-VN') : '—'

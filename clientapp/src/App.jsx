@@ -47,7 +47,8 @@ function Layout() {
         <NavLink to="/manufacture-lines">Dây chuyền SX</NavLink>
         <NavLink to="/warning-sync-es">Cảnh báo đồng bộ ES</NavLink>
         <NavLink to="/provinces">Tỉnh/Thành phố</NavLink>
-        <NavLink to="/notify-for-searches">Thông báo tra cứu</NavLink></nav>
+        <NavLink to="/notify-for-searches">Thông báo tra cứu</NavLink>
+        <NavLink to="/verified-id-in-outs">Xuất ghép tem</NavLink></nav>
       <div className="wrap"><Outlet /></div>
     </>
   )
@@ -2246,7 +2247,103 @@ export default function App() {
         <Route path="warning-sync-es" element={<WarningSyncESs />} />
         <Route path="provinces" element={<Provinces />} />
         <Route path="notify-for-searches" element={<NotifyForSearches />} />
+        <Route path="verified-id-in-outs" element={<VerifiedIdInOuts />} />
       </Route>
     </Routes>
+  )
+}
+
+function VerifiedIdInOuts() {
+  const [rows, setRows] = useState([]); const [q, setQ] = useState(''); const [status, setStatus] = useState('')
+  const [edit, setEdit] = useState(null); const [msg, setMsg] = useState(null)
+  const load = () => api.verifiedIdInOuts(q, status === '' ? null : Number(status)).then(r => setRows(r.data))
+  useEffect(() => { load() }, [])
+  const flash = (ok, text) => { setMsg({ ok, text }); setTimeout(() => setMsg(null), 3000) }
+  const cancel = async (v) => {
+    if (!window.confirm(`Hủy phiếu xuất ghép ${v.iVerifiedIDInOutNo}?`)) return
+    try { const r = await api.cancelVerifiedIdInOut(v.id, { by: 'admin' }); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  const del = async (v) => {
+    if (!window.confirm(`Xóa phiếu xuất ghép ${v.iVerifiedIDInOutNo}?`)) return
+    try { const r = await api.deleteVerifiedIdInOut(v.id); flash(true, r.data.msg); load() } catch (e) { flash(false, e.message) }
+  }
+  return (
+    <>
+      <h1>Xuất ghép tem</h1>
+      <div className="row">
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm theo mã xuất ghép / phiếu xuất / khách hàng / mã SP…" />
+        <select value={status} onChange={e => setStatus(e.target.value)} style={{ flex: 'none', width: 160 }}>
+          <option value="">Tất cả trạng thái</option><option value="0">Đang hiệu lực</option><option value="1">Đã hủy</option>
+        </select>
+        <button className="btn ghost sm" style={{ flex: 'none' }} onClick={load}>Tìm</button>
+        <button className="btn sm" style={{ flex: 'none' }} onClick={() => setEdit({ id: 0, iVerifiedIDInOutNo: '', ifInvOutNo: '', productCode: '', productName: '', unitCode: '', qtyInit: 0, qtyVerified: 0, qtyPlan: 0, refNoSys: '', refNo: '', refType: 'OUT', invOutType: 'SALE', invCode: '', plateNo: '', moocNo: '', driverName: '', driverPhoneNo: '', orgID_Customer: '', customerCode: '', customerName: '', customerAddress: '', userKCS: '', userMoveOrder: '', transportType: '', receivePlace: '', maVungVT: '', productionDate: '', shiftInCode: '', productionLotNo: '', salesDTime: '', packageDate: '', remark: '' })}>+ Tạo phiếu xuất ghép</button></div>
+      <Flash msg={msg} />
+      <p className="muted" style={{ marginTop: 0 }}>Phiếu xuất ghép tem (GS1 Inv_VerifiedIDInOut) — gắn lô tem đã xác thực vào phiếu xuất kho để giao cho khách hàng/đại lý. Mắt xích "xuất kho" của chuỗi truy xuất: nối kho số tem với khách hàng nhận hàng, tài xế/vận chuyển và vùng thị trường. QtyInit = số lượng thực tế, QtyVerified = số lượng ghép được, QtyPlan = số lượng kế hoạch.</p>
+      <div className="card" style={{ padding: 0, overflow: 'auto' }}>
+        <table><thead><tr><th>Mã xuất ghép</th><th>Phiếu xuất kho</th><th>Sản phẩm</th><th>SL (thực tế/ghép/KH)</th><th>Khách hàng</th><th>Tài xế</th><th>Vùng VT</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>{rows.map(v => (
+            <tr key={v.id}><td style={{ fontFamily: 'monospace' }}>{v.iVerifiedIDInOutNo}</td>
+              <td style={{ fontFamily: 'monospace' }}>{v.ifInvOutNo}</td>
+              <td>{v.productName || v.productCode || '—'}</td>
+              <td className="muted">{v.qtyInit} / {v.qtyVerified} / {v.qtyPlan}</td>
+              <td>{v.customerName || '—'}</td>
+              <td className="muted">{v.driverName || '—'}{v.plateNo ? ` · ${v.plateNo}` : ''}</td>
+              <td className="muted">{v.maVungVT || '—'}</td>
+              <td><Badge text={v.statusText} css={v.css} /></td>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                {v.status === 0 && <button className="btn ghost sm" onClick={() => setEdit({ ...v })}>Sửa</button>}
+                {v.status === 0 && <button className="btn gray sm" onClick={() => cancel(v)}>Hủy</button>}
+                <button className="btn gray sm" onClick={() => del(v)}>Xóa</button></td></tr>
+          ))}</tbody></table>
+        {rows.length === 0 && <p className="muted" style={{ padding: 16 }}>Chưa có phiếu xuất ghép nào.</p>}
+      </div>
+      {edit && <VerifiedIdInOutForm item={edit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); load() }} />}
+    </>
+  )
+}
+
+function VerifiedIdInOutForm({ item, onClose, onSaved }) {
+  const [f, setF] = useState({ ...item }); const [err, setErr] = useState('')
+  const up = (k, v) => setF({ ...f, [k]: v })
+  const save = async () => {
+    try { await api.saveVerifiedIdInOut({ ...f }); onSaved() } catch (e) { setErr(e.message) }
+  }
+  return (
+    <Modal title={f.id ? `Sửa phiếu xuất ghép ${f.iVerifiedIDInOutNo}` : 'Tạo phiếu xuất ghép tem'} onClose={onClose} wide>
+      {err && <Flash msg={{ ok: false, text: err }} />}
+      <div className="row"><Field label="Mã xuất ghép (IVerifiedIDInOutNo)"><input value={f.iVerifiedIDInOutNo || ''} onChange={e => up('iVerifiedIDInOutNo', e.target.value)} placeholder="để trống → tự cấp" /></Field>
+        <Field label="Số phiếu xuất kho (IF_InvOutNo) *"><input value={f.ifInvOutNo || ''} onChange={e => up('ifInvOutNo', e.target.value)} placeholder="vd: PX2601100002" /></Field></div>
+      <div className="row"><Field label="Mã sản phẩm (ProductCode)"><input value={f.productCode || ''} onChange={e => up('productCode', e.target.value)} placeholder="vd: 8930001001" /></Field>
+        <Field label="Tên sản phẩm (ProductName)"><input value={f.productName || ''} onChange={e => up('productName', e.target.value)} /></Field>
+        <Field label="ĐVT (UnitCode)"><input value={f.unitCode || ''} onChange={e => up('unitCode', e.target.value)} placeholder="vd: Túi" /></Field></div>
+      <div className="row"><Field label="SL thực tế (QtyInit)"><input type="number" value={f.qtyInit ?? 0} onChange={e => up('qtyInit', Number(e.target.value))} /></Field>
+        <Field label="SL ghép được (QtyVerified)"><input type="number" value={f.qtyVerified ?? 0} onChange={e => up('qtyVerified', Number(e.target.value))} /></Field>
+        <Field label="SL kế hoạch (QtyPlan)"><input type="number" value={f.qtyPlan ?? 0} onChange={e => up('qtyPlan', Number(e.target.value))} /></Field></div>
+      <div className="row"><Field label="Mã đơn hàng hệ thống (RefNoSys) *"><input value={f.refNoSys || ''} onChange={e => up('refNoSys', e.target.value)} /></Field>
+        <Field label="Mã đơn hàng (RefNo) *"><input value={f.refNo || ''} onChange={e => up('refNo', e.target.value)} /></Field>
+        <Field label="Loại đơn hàng (RefType)"><input value={f.refType || ''} onChange={e => up('refType', e.target.value)} placeholder="vd: OUT" /></Field></div>
+      <div className="row"><Field label="Loại xuất kho (InvOutType)"><input value={f.invOutType || ''} onChange={e => up('invOutType', e.target.value)} placeholder="vd: SALE" /></Field>
+        <Field label="Mã kho (InvCode)"><input value={f.invCode || ''} onChange={e => up('invCode', e.target.value)} placeholder="vd: KHO-FG-ST" /></Field>
+        <Field label="Vùng vận tải (MaVungVT)"><input value={f.maVungVT || ''} onChange={e => up('maVungVT', e.target.value)} placeholder="vd: MA-TPHCM" /></Field></div>
+      <div className="row"><Field label="Mã khách hàng (CustomerCode)"><input value={f.customerCode || ''} onChange={e => up('customerCode', e.target.value)} /></Field>
+        <Field label="Tên khách hàng (CustomerName)"><input value={f.customerName || ''} onChange={e => up('customerName', e.target.value)} /></Field></div>
+      <Field label="Địa chỉ khách hàng (CustomerAddress)"><input value={f.customerAddress || ''} onChange={e => up('customerAddress', e.target.value)} /></Field>
+      <div className="row"><Field label="Biển số xe (PlateNo)"><input value={f.plateNo || ''} onChange={e => up('plateNo', e.target.value)} /></Field>
+        <Field label="Số mooc (MoocNo)"><input value={f.moocNo || ''} onChange={e => up('moocNo', e.target.value)} /></Field>
+        <Field label="Loại phương tiện (TransportType)"><input value={f.transportType || ''} onChange={e => up('transportType', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Tài xế (DriverName)"><input value={f.driverName || ''} onChange={e => up('driverName', e.target.value)} /></Field>
+        <Field label="ĐT tài xế (DriverPhoneNo)"><input value={f.driverPhoneNo || ''} onChange={e => up('driverPhoneNo', e.target.value)} /></Field>
+        <Field label="Địa điểm nhận (ReceivePlace)"><input value={f.receivePlace || ''} onChange={e => up('receivePlace', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Người KCS (UserKCS)"><input value={f.userKCS || ''} onChange={e => up('userKCS', e.target.value)} /></Field>
+        <Field label="Người điều chuyển (UserMoveOrder)"><input value={f.userMoveOrder || ''} onChange={e => up('userMoveOrder', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Ngày sản xuất (ProductionDate)"><input value={f.productionDate || ''} onChange={e => up('productionDate', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Ca sản xuất (ShiftInCode)"><input value={f.shiftInCode || ''} onChange={e => up('shiftInCode', e.target.value)} /></Field>
+        <Field label="Lô sản xuất (ProductionLotNo)"><input value={f.productionLotNo || ''} onChange={e => up('productionLotNo', e.target.value)} /></Field></div>
+      <div className="row"><Field label="Ngày xuất hàng (SalesDTime)"><input value={f.salesDTime || ''} onChange={e => up('salesDTime', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Ngày đóng hàng (PackageDate)"><input value={f.packageDate || ''} onChange={e => up('packageDate', e.target.value)} placeholder="yyyy-MM-dd" /></Field>
+        <Field label="Ghi chú (Remark)"><input value={f.remark || ''} onChange={e => up('remark', e.target.value)} /></Field></div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Quy tắc: cần số phiếu xuất kho + mã đơn hàng hệ thống (RefNoSys) + mã đơn hàng (RefNo); mã xuất ghép duy nhất trong hệ thống (tự cấp nếu để trống); SL ghép được không vượt quá SL thực tế; phiếu đã hủy không sửa được.</p>
+      <div style={{ marginTop: 12 }}><button className="btn" onClick={save}>{f.id ? 'Lưu' : 'Tạo'}</button></div>
+    </Modal>
   )
 }

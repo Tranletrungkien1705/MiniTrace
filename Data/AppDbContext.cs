@@ -49,6 +49,7 @@ public class AppDbContext : DbContext
     public DbSet<WarningSyncES> WarningSyncESs => Set<WarningSyncES>();
     public DbSet<Province> Provinces => Set<Province>();
     public DbSet<NotifyForSearch> NotifyForSearches => Set<NotifyForSearch>();
+    public DbSet<VerifiedIdInOut> VerifiedIdInOuts => Set<VerifiedIdInOut>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -261,6 +262,12 @@ public class AppDbContext : DbContext
         b.Entity<NotifyForSearch>(e =>
         {
             e.HasIndex(x => new { x.OrgId, x.NotiFSNo }).IsUnique();   // mã thông báo duy nhất trong tenant
+            e.HasQueryFilter(x => x.OrgId == _orgId);
+        });
+        b.Entity<VerifiedIdInOut>(e =>
+        {
+            e.HasIndex(x => new { x.OrgId, x.IVerifiedIDInOutNo }).IsUnique();   // mã lần xuất ghép duy nhất trong tenant
+            e.HasIndex(x => new { x.OrgId, x.IF_InvOutNo });                     // tra cứu theo phiếu xuất kho
             e.HasQueryFilter(x => x.OrgId == _orgId);
         });
     }
