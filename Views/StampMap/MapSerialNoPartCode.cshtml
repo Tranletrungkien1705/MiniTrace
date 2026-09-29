@@ -1,0 +1,67 @@
+@model List<ScanRow>
+@{
+    // Tiêu đề lấy nguyên văn nguồn: MapSerialNoPartCode.cshtml:3
+    ViewData["Title"] = "Ghép Mã QR - Thông tin SP bộ";
+    var scanText = (string?)ViewBag.ScanText ?? "";
+    var scanned = scanText.Replace("\r\n", "\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+}
+<h1 class="h5 fw-bold mb-3">Ghép Mã QR - Thông tin SP bộ
+    <span class="text-muted fw-normal" style="font-size:13px">(port 1:1 MapSerialNoPartCode.cshtml — Inv_InventoryBalanceSerial)</span>
+</h1>
+
+<div class="card mb-3"><div class="card-body">
+    <div class="small text-muted mb-2">
+        Thứ tự quét ĐÚNG: <b>Mã sản phẩm → Serial</b> (nguồn Inv_InventoryBalanceSerialController.cs:623).
+        Dòng bắt đầu bằng <code>@MiniTrace.Services.StampMapService.PrefixSerial</code> được coi là tem serial
+        (nguồn dòng 712-733); mọi dòng khác là mã sản phẩm.
+    </div>
+    <form asp-action="ImportSerialNoPartCode" method="post">@Html.AntiForgeryToken()
+        <textarea name="scanText" rows="6" class="form-control font-monospace" style="font-size:12.5px"
+                  placeholder="SU-C108&#10;@(MiniTrace.Services.StampMapService.PrefixSerial)VGC20260001&#10;@(MiniTrace.Services.StampMapService.PrefixSerial)VGC20260002">@scanText</textarea>
+        <button class="btn btn-primary mt-2"><i class="bi bi-upload me-1"></i>Import (dữ liệu máy quét)</button>
+    </form>
+</div></div>
+
+<form asp-action="SaveSerialNoPartCode" method="post">@Html.AntiForgeryToken()
+<input type="hidden" name="scanText" value="@scanText" />
+<div class="row g-3">
+    <!-- Cột trái: "Dữ liệu máy quét" — nguồn SerialNoPartCode.cshtml:19 -->
+    <div class="col-lg-4"><div class="card h-100"><div class="card-body">
+        <h6 class="fw-bold mb-2">Dữ liệu máy quét</h6>
+        <table class="table table-sm table-bordered mb-0"><tbody>
+        @foreach (var l in scanned) { <tr><td class="font-monospace" style="font-size:12px">@l</td></tr> }
+        @if (scanned.Length == 0) { <tr><td class="text-muted small">Chưa nạp dữ liệu.</td></tr> }
+        </tbody></table>
+    </div></div></div>
+
+    <!-- Cột phải: lưới 5 cột — nguồn SerialNoPartCode.cshtml:53-62 -->
+    <div class="col-lg-8"><div class="card h-100"><div class="card-body">
+        <table class="table table-sm table-hover align-middle">
+            <thead><tr>
+                <th style="width:48px">STT</th><th>Serial No</th><th>Mã sản phẩm</th>
+                <th style="width:44px" class="text-center"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=pick]:not(:disabled)').forEach(c=>c.checked=this.checked)" /></th>
+                <th style="width:150px">Mã lỗi</th>
+            </tr></thead>
+            <tbody>
+            @for (var i = 0; i < Model.Count; i++)
+            {
+                var r = Model[i];
+                // InputStatus "1" = chọn được; "0" = lỗi ⇒ tô đỏ + khoá ô tích
+                // (nguồn SerialNoPartCode.cshtml:78-101).
+                var bad = r.InputStatus != SerialFlag.Yes;
+                <tr style="@(bad ? "color:#dc2626" : "")" title="@r.ErrMapName">
+                    <td class="text-end">@(i + 1)</td>
+                    <td class="font-monospace" style="font-size:12px">@r.SerialNo_Actual</td>
+                    <td>@r.PartCode</td>
+                    <td class="text-center"><input class="form-check-input" type="checkbox" name="pick" value="@i" @(bad ? "disabled" : "checked") /></td>
+                    <td class="text-center small">@r.ErrMapCode</td>
+                </tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="5" class="text-center text-muted py-4">Lưới dữ liệu trống!</td></tr> }
+            </tbody>
+        </table>
+        @* Nút Lưu — nguồn SerialNoPartCode.cshtml:130 (BTN_MAP_XAC_THUC_SP_SERIALNO_PARTCODE_LUU) *@
+        <button class="btn btn-primary" @(Model.Count == 0 ? "disabled" : "")><i class="bi bi-floppy me-1"></i>Lưu</button>
+    </div></div></div>
+</div>
+</form>

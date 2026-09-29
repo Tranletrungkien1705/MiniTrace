@@ -1,0 +1,74 @@
+@model List<ScanRow>
+@{
+    // Tiêu đề lấy nguyên văn nguồn: MapSerialNoCanNo.cshtml:3
+    ViewData["Title"] = "Ghép Mã QR - Mã thùng bộ";
+    var scanText = (string?)ViewBag.ScanText ?? "";
+    var userCan = (string?)ViewBag.UserCan ?? "";
+    var userKcs = (string?)ViewBag.UserKcs ?? "";
+    var scanned = scanText.Replace("\r\n", "\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+}
+<h1 class="h5 fw-bold mb-3">Ghép Mã QR - Mã thùng bộ
+    <span class="text-muted fw-normal" style="font-size:13px">(port 1:1 MapSerialNoCanNo.cshtml — Inv_InventoryBalanceSerial)</span>
+</h1>
+
+<div class="card mb-3"><div class="card-body">
+    <div class="small text-muted mb-2">
+        Thứ tự quét ĐÚNG: <b>Serial → Mã thùng</b> (nguồn Inv_InventoryBalanceSerialController.cs:1840)
+        — <b>ngược chiều</b> màn "Ghép Mã QR - Thông tin SP bộ". <code>CanNo</code> = mã <b>thùng</b>,
+        <code>BoxNo</code> = mã <b>hộp</b> (nguồn InvInventoryBalanceSerial.cs:42-44).
+    </div>
+    <form asp-action="ImportSerialNoCanNo" method="post">@Html.AntiForgeryToken()
+        <div class="row g-2 mb-2">
+            @* 2 ô nhập bắt buộc — nguồn MapSerialNoCanNo.cshtml:41-53 *@
+            <div class="col-sm-3"><label class="form-label small mb-1">Người đóng thùng</label>
+                <input name="userCan" value="@userCan" class="form-control form-control-sm" required /></div>
+            <div class="col-sm-3"><label class="form-label small mb-1">KCS</label>
+                <input name="userKcs" value="@userKcs" class="form-control form-control-sm" /></div>
+        </div>
+        <textarea name="scanText" rows="6" class="form-control font-monospace" style="font-size:12.5px"
+                  placeholder="@(MiniTrace.Services.StampMapService.PrefixSerial)VGC20260001&#10;@(MiniTrace.Services.StampMapService.PrefixSerial)VGC20260002&#10;THU-0001">@scanText</textarea>
+        <button class="btn btn-primary mt-2"><i class="bi bi-upload me-1"></i>Import (dữ liệu máy quét)</button>
+    </form>
+</div></div>
+
+<form asp-action="SaveSerialNoCanNo" method="post">@Html.AntiForgeryToken()
+<input type="hidden" name="scanText" value="@scanText" />
+<input type="hidden" name="userCan" value="@userCan" />
+<input type="hidden" name="userKcs" value="@userKcs" />
+<div class="row g-3">
+    <div class="col-lg-4"><div class="card h-100"><div class="card-body">
+        <h6 class="fw-bold mb-2">Dữ liệu máy quét</h6>
+        <table class="table table-sm table-bordered mb-0"><tbody>
+        @foreach (var l in scanned) { <tr><td class="font-monospace" style="font-size:12px">@l</td></tr> }
+        @if (scanned.Length == 0) { <tr><td class="text-muted small">Chưa nạp dữ liệu.</td></tr> }
+        </tbody></table>
+    </div></div></div>
+
+    @* Lưới 5 cột — nguồn SerialNoCanNo.cshtml:53-62 *@
+    <div class="col-lg-8"><div class="card h-100"><div class="card-body">
+        <table class="table table-sm table-hover align-middle">
+            <thead><tr>
+                <th style="width:48px">STT</th><th>Serial No</th><th>Mã thùng</th>
+                <th style="width:44px" class="text-center"><input type="checkbox" class="form-check-input" onclick="document.querySelectorAll('input[name=pick]:not(:disabled)').forEach(c=>c.checked=this.checked)" /></th>
+                <th style="width:150px">Mã lỗi</th>
+            </tr></thead>
+            <tbody>
+            @for (var i = 0; i < Model.Count; i++)
+            {
+                var r = Model[i];
+                var bad = r.InputStatus != SerialFlag.Yes;
+                <tr style="@(bad ? "color:#dc2626" : "")" title="@r.ErrMapName">
+                    <td class="text-end">@(i + 1)</td>
+                    <td class="font-monospace" style="font-size:12px">@r.SerialNo_Actual</td>
+                    <td>@r.CanNo</td>
+                    <td class="text-center"><input class="form-check-input" type="checkbox" name="pick" value="@i" @(bad ? "disabled" : "checked") /></td>
+                    <td class="text-center small">@r.ErrMapCode</td>
+                </tr>
+            }
+            @if (Model.Count == 0) { <tr><td colspan="5" class="text-center text-muted py-4">Lưới dữ liệu trống!</td></tr> }
+            </tbody>
+        </table>
+        <button class="btn btn-primary" @(Model.Count == 0 ? "disabled" : "")><i class="bi bi-floppy me-1"></i>Lưu</button>
+    </div></div></div>
+</div>
+</form>

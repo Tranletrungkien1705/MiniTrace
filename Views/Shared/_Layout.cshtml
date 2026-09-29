@@ -1,5 +1,7 @@
 @{
     string Nav(string c) => (ViewContext.RouteData.Values["controller"]?.ToString() == c) ? "active" : "";
+    // Cụm ghép tem dùng 1 controller cho 3 màn ⇒ tô sáng theo ACTION, không theo controller.
+    string Act(string a) => (ViewContext.RouteData.Values["action"]?.ToString() == a) ? "active" : "";
 }
 <!DOCTYPE html>
 <html lang="vi">
@@ -39,6 +41,11 @@
             <a class="nav-link @(Nav("Unit"))" href="/Unit"><i class="bi bi-upc-scan"></i> Đơn vị truy xuất</a>
             <a class="nav-link @(Nav("Product"))" href="/Product"><i class="bi bi-box-seam"></i> Sản phẩm</a>
             <a class="nav-link" href="/Trace" target="_blank"><i class="bi bi-search"></i> Trang tra cứu (công khai)</a>
+            @* Cụm ghép tem port 1:1 từ 2017.A.iNOS.InBrand (Views/Inv_InventoryBalanceSerial) *@
+            <div class="nav-section">Ghép tem (iNOS.InBrand)</div>
+            <a class="nav-link @(Act("MapSerialNoPartCode"))" href="/StampMap/MapSerialNoPartCode"><i class="bi bi-qr-code"></i> Ghép QR - Thông tin SP</a>
+            <a class="nav-link @(Act("MapSerialNoCanNo"))" href="/StampMap/MapSerialNoCanNo"><i class="bi bi-box2"></i> Ghép QR - Mã thùng</a>
+            <a class="nav-link @(Act("MapCanNoAgentCode"))" href="/StampMap/MapCanNoAgentCode"><i class="bi bi-box-arrow-right"></i> Xuất hàng</a>
             <div class="nav-section">Hệ thống</div>
             <a class="nav-link @(Nav("Org"))" href="/Org"><i class="bi bi-building"></i> Nhà sản xuất</a>
         </div>
